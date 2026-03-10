@@ -1,0 +1,150 @@
+● Harness Engineering 完整执行步骤 cycle
+
+  第一阶段：需求讨论
+   
+  步骤1：描述需求
+  
+  你：我想做一个 XXX 应用
+  功能：A、B、C
+  技术栈：Python/React/...
+
+  步骤2：与 Claude 讨论细化
+
+  Claude 会问：
+  - 目标用户？
+  - 核心功能？
+  - MVP 范围？
+  - 技术选型？
+
+  时间：10-30 分钟，多轮对话
+
+  ---
+  第二阶段：生成 PRD
+
+  步骤3：生成产品需求文档
+
+  在对话中输入：/create-prd
+
+  输出： .claude/PRD.md（30-60 页的完整需求文档）
+
+  ---
+  第三阶段：了解项目
+
+  步骤4：Prime - 加载项目上下文
+
+  在对话中输入：/core_piv_loop:prime
+
+  Claude 会自动：
+  - 分析项目结构
+  - 读取文档
+  - 了解代码规范
+  - 输出项目概览报告
+
+  ---
+  第四阶段：规划功能
+
+  步骤5：Plan - 生成实现计划
+
+  在对话中输入：/core_piv_loop:plan-feature 功能描述
+
+  例子：
+  /core_piv_loop:plan-feature 搭建 FastAPI 后端基础架构
+
+  Claude 会自动：
+  - 研究代码库
+  - 查找文档
+  - 生成详细计划（2000+ 行）
+  - 包含完整代码
+
+  输出： .agents/plans/功能名.md
+
+  ---
+  第五阶段：执行实现
+
+  步骤6：Execute - 按计划实现
+
+  在对话中输入：/core_piv_loop:execute .agents/plans/计划文件.md
+
+  Claude 会自动：
+  - 读取计划
+  - 逐步实现代码
+  - 边做边验证
+
+  ---
+  第六阶段：验证质量
+
+  步骤7：Validate - 运行验证
+
+  在对话中输入：/validation:validate
+
+  Claude 会自动运行：
+  - 代码检查（linting）
+  - 单元测试
+  - 测试覆盖率
+  - 构建验证
+
+  ---
+  第七阶段：代码审查
+
+  步骤8：Code Review - 审查代码
+
+  在对话中输入：/validation:code-review
+
+  Claude 会检查：
+  - 逻辑错误
+  - 安全问题
+  - 性能问题
+  - 代码质量
+
+  输出： .agents/code-reviews/报告.md
+
+  ---
+  第八阶段：提交代码
+
+  步骤9：Commit - 提交更改
+
+  在对话中输入：/commit
+
+  Claude 会自动：
+  - 生成规范的 commit 信息
+  - 创建 git commit
+
+  ---
+  完整流程图
+
+  1. 讨论需求（10-30分钟）
+     ↓
+  2. /create-prd → 生成 PRD
+     ↓
+  3. /core_piv_loop:prime → 了解项目
+     ↓
+  4. /core_piv_loop:plan-feature → 生成计划
+     ↓
+  5. /core_piv_loop:execute → 实现代码
+     ↓
+  6. /validation:validate → 验证质量
+     ↓
+  7. /validation:code-review → 代码审查
+     ↓
+  8. /commit → 提交代码
+     ↓
+  完成 ✓
+
+  ---
+  你的工作量
+
+  ✅ 描述需求（10分钟）
+  ✅ 输入 8 个命令（2分钟）
+  ✅ 审查结果（10分钟）
+
+  总计：约 20-30 分钟
+
+  Claude 的工作量
+
+  ✅ 生成 PRD（30-60页）
+  ✅ 分析代码库
+  ✅ 生成详细计划（2000+行）
+  ✅ 写完整代码（数千行）
+  ✅ 运行所有测试
+  ✅ 代码审查
+  ✅ 生成提交信息
