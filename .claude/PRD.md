@@ -314,6 +314,106 @@ class Tool(ABC):
 Sandbox temp files → Artifact (S3/MinIO) → Project directory (user-initiated save)
 ```
 
+### Core Boundaries & Resource Model
+
+This section defines critical boundaries between system concepts to prevent architectural confusion during implementation.
+
+#### Conversation vs Task Boundary
+
+**Conversation** is an **interaction container** for user-system dialogue:
+- Users can discuss ideas, ask questions, clarify requirements
+- Multiple rounds of back-and-forth without creating tasks
+- Displays task results and allows follow-up discussion
+- One conversation can spawn multiple tasks over time
+
+**Task** is an **execution unit** with a clear goal:
+- Created only when user explicitly initiates execution (button click, explicit command)
+- NOT created for every message in conversation
+- Has defined start/end, success/failure states
+- Produces concrete artifacts
+
+**Creation Flow:**
+1. User sends messages in conversation (no task created)
+2. User clicks "Execute" or says "start task" → Task created
+3. Task executes independently
+4. Results posted back to conversation
+5. User can discuss results without creating new task
+
+**API Separation:**
+- `POST /conversations/{id}/messages` - Send message (no task creation)
+- `POST /tasks` - Explicitly create task (with conversation_id reference)
+
+#### Task vs Run Boundary
+
+**Task** represents the **logical goal** (what to accomplish):
+- Goal description
+- Skill template selection
+- Project/conversation associations
+- Creation metadata
+
+**Run** represents a **single execution attempt** (how it was executed):
+- Execution state (pending/running/success/failed)
+- Sandbox instance
+- Execution logs and steps
+- Tool calls and results
+- Generated artifacts
+- Timing information
+- Error details
+
+**Resource Ownership Rules:**
+
+| Resource | Belongs To | Reason |
+|----------|-----------|---------|
+| Goal, skill, model config | Task | Defines what to do |
+| Status (running/failed) | Run | Changes per execution |
+| Sandbox session | Run | One sandbox per attempt |
+| Execution logs | Run | Different each attempt |
+| Step records | Run | Execution-specific |
+| Tool call history | Run | Execution-specific |
+| Artifacts | Run | Produced by specific execution |
+| Start/end timestamps | Run | Execution-specific |
+| Error messages | Run | Execution-specific |
+
+**Retry Behavior:**
+- Retry creates a **new Run** with same Task goal
+- New Run gets fresh sandbox, clean logs
+- Previous Run's artifacts and logs remain accessible
+- Task tracks "current_run_id" for active execution
+
+#### Artifact Three-Layer Model
+
+The system distinguishes three types of files with different lifecycles:
+
+**Layer 1: Sandbox Temporary Files**
+- **Location:** `/sandbox/{run_id}/workspace/` inside Docker container
+- **Lifecycle:** Created during execution, destroyed when sandbox terminates
+- **Purpose:** Working files for agent (intermediate data, temp scripts)
+- **Access:** Only accessible within sandbox during execution
+- **Cleanup:** Deleted N hours after run completion (configurable, default 2 hours)
+
+**Layer 2: Artifacts**
+- **Location:** MinIO/S3 object storage (`s3://manus-artifacts/{run_id}/{filename}`)
+- **Lifecycle:** Extracted from sandbox at task completion, retained 30 days
+- **Purpose:** Deliverables worth preserving (reports, screenshots, generated code)
+- **Access:** Via API (`GET /artifacts/{artifact_id}/download`)
+- **Metadata:** Stored in database (artifact table) with run_id, type, size, created_at
+- **Cleanup:** Auto-deleted after 30 days if not saved to project
+
+**Layer 3: Project Files**
+- **Location:** Project directory structure (database: project_node table)
+- **Lifecycle:** Permanent (until user deletes)
+- **Purpose:** Official project assets, reusable across tasks
+- **Access:** Via project file API, indexed by RAG
+- **Creation:** User explicitly saves artifact to project via "Save to Project" action
+
+**Flow Example:**
+1. Agent writes `/workspace/report.md` in sandbox (Layer 1)
+2. Task completes, system extracts `report.md` → creates Artifact (Layer 2)
+3. User clicks "Save to Project" → copies to `/reports/tesla-q4.md` (Layer 3)
+4. Sandbox destroyed, temp files gone
+5. Artifact retained 30 days
+6. Project file permanent, available for future tasks via RAG
+
 ## 7. Tools/Features
 
 ### Tool System Design
@@ -359,29 +459,31 @@ Each tool follows a unified interface with consistent parameter structure and re
 
 #### File Tools
 
-**Purpose:** Read, write, and manage files in sandbox and project directories.
+**Purpose:** Read, write, and manage files within the sandbox workspace.
+
+**Scope:** Agent can only access files inside the sandbox (`/workspace/` directory). Project files are read-only via RAG context. To save results to project, agent must create artifacts that users explicitly save via "Save to Project" action.
 
 **Operations:**
 
 1. **file.list**
-   - Lists files in directory
+   - Lists files in sandbox directory
    - Returns: file paths, sizes, modified times
    - Example: `{"path": "/workspace", "recursive": true}`
 
 2. **file.read**
-   - Reads file content
+   - Reads file content from sandbox
    - Returns: file content (text or base64 for binary)
    - Example: `{"path": "/workspace/data.json"}`
 
 3. **file.write**
-   - Writes content to file
+   - Writes content to file in sandbox
    - Returns: success status, file path
    - Example: `{"path": "/workspace/report.md", "content": "# Report..."}`
 
 **Key Features:**
-- Sandbox filesystem isolation
+- Sandbox filesystem isolation (no direct project write access)
 - Support for text and binary files
-- Automatic directory creation
+- Automatic directory creation within sandbox
 - File size limits for safety
 
 #### Python Execution Tool
@@ -713,8 +815,13 @@ MVP: No authentication required. Future: Bearer token in Authorization header.
 }
 ```
 
-**GET /projects/{project_id}/files/{file_path}**
-- Download file content
+**GET /projects/{project_id}/nodes/{node_id}/content**
+- Download file content by node ID
+- Response: 200 OK with file content
+
+**GET /projects/{project_id}/files/download**
+- Download file content by path (alternative)
+- Query params: `?path=/reports/tesla-q4.md`
 - Response: 200 OK with file content
 
 **POST /projects/{project_id}/files**
@@ -769,22 +876,25 @@ MVP: No authentication required. Future: Bearer token in Authorization header.
 ```
 
 **POST /conversations/{conversation_id}/messages**
-- Send message to conversation
+- Send message to conversation (does not create task)
 - Request:
 ```json
 {
-  "content": "Research Tesla Q4 2025 earnings and create a report",
-  "create_task": true,
-  "skill": "research_report"
+  "content": "I want to research Tesla Q4 2025 earnings",
+  "role": "user"
 }
 ```
 - Response: 201 Created
 ```json
 {
   "message_id": "msg_003",
-  "task_id": "task_456"
+  "content": "I want to research Tesla Q4 2025 earnings",
+  "role": "user",
+  "created_at": "2026-03-10T17:46:10Z"
 }
 ```
+
+**Note:** To create a task, use `POST /tasks` endpoint separately. This maintains clear separation between conversation (interaction) and task (execution).
 
 #### Tasks
 
@@ -814,7 +924,7 @@ MVP: No authentication required. Future: Bearer token in Authorization header.
 ```
 
 **GET /tasks/{task_id}**
-- Get task details
+- Get task details (task-level properties only)
 - Response: 200 OK
 ```json
 {
@@ -822,13 +932,14 @@ MVP: No authentication required. Future: Bearer token in Authorization header.
   "conversation_id": "conv_xyz789",
   "project_id": "proj_abc123",
   "goal": "Research Tesla Q4 2025 earnings",
-  "status": "running",
   "skill": "research_report",
+  "model": "gpt-4-turbo-preview",
   "current_run_id": "run_789",
-  "created_at": "2026-03-10T17:46:10Z",
-  "started_at": "2026-03-10T17:46:15Z"
+  "created_at": "2026-03-10T17:46:10Z"
 }
 ```
+
+**Note:** To get execution status, timestamps, or logs, query the run: `GET /runs/{run_id}`
 
 **GET /tasks/{task_id}/runs**
 - List all runs for a task
@@ -857,14 +968,50 @@ MVP: No authentication required. Future: Bearer token in Authorization header.
 }
 ```
 
-**POST /tasks/{task_id}/cancel**
-- Cancel running task
+#### Runs
+
+**GET /runs/{run_id}**
+- Get run details
 - Response: 200 OK
+```json
+{
+  "id": "run_789",
+  "task_id": "task_456",
+  "status": "running",
+  "started_at": "2026-03-10T17:46:15Z",
+  "sandbox_id": "sandbox_abc",
+  "step_count": 3
+}
+```
 
-#### Task Events (WebSocket)
+**POST /runs/{run_id}/cancel**
+- Cancel specific run
+- Response: 200 OK
+```json
+{
+  "run_id": "run_789",
+  "status": "cancelled",
+  "cancelled_at": "2026-03-10T17:50:00Z"
+}
+```
 
-**WS /tasks/{task_id}/events**
-- Real-time task execution events
+**GET /runs/{run_id}/logs**
+- Get execution logs for specific run
+- Response: 200 OK with log entries
+  "started_at": "2026-03-10T17:46:15Z",
+  "sandbox_id": "sandbox_abc",
+  "step_count": 3
+}
+```
+
+**GET /runs/{run_id}/logs**
+- Get execution logs for specific run
+- Response: 200 OK with log entries
+
+#### Run Events (WebSocket)
+
+**WS /runs/{run_id}/events**
+- Real-time execution events for specific run
 - Events:
 ```json
 {
@@ -948,69 +1095,118 @@ MVP: No authentication required. Future: Bearer token in Authorization header.
 
 ### MVP Success Definition
 
-The MVP is successful if a user can complete this end-to-end workflow:
+The MVP is successful if it **validates the core product hypothesis**: users can delegate complex, multi-step tasks to an AI agent that executes them autonomously in isolated environments, producing valuable artifacts that persist in project directories.
 
-1. Create a project
-2. Start a conversation in that project
-3. Request a complex task (e.g., "Research Tesla Q4 earnings and create a report")
-4. See the agent execute multiple steps with real-time updates
-5. View the generated artifact (report, code, etc.)
-6. Save the artifact to the project directory
-7. Initiate a follow-up task that references the previous work
+Success is measured by **hypothesis validation**, not feature completeness.
 
-### Functional Requirements
+### Core Hypotheses to Validate
 
-**Core Functionality:**
-- ✅ User can create projects and view directory structure
-- ✅ User can create conversations linked to projects
-- ✅ User can send messages that trigger task creation
-- ✅ System creates isolated sandbox for each task run
-- ✅ Agent executes multi-step plans using available tools
-- ✅ User sees real-time task progress and tool calls
-- ✅ System generates artifacts (reports, code, screenshots)
-- ✅ User can download artifacts
-- ✅ User can save artifacts to project directory
-- ✅ User can retry failed tasks
-- ✅ System cleans up sandboxes after task completion
+#### Hypothesis 1: Users Understand and Adopt the Task Delegation Model
 
-**Tool System:**
-- ✅ Browser automation works (open, click, type, extract, screenshot)
-- ✅ File operations work (list, read, write)
-- ✅ Python code execution works with common libraries
-- ✅ Web fetching works for API calls
-- ✅ All tool calls are logged and visible to user
+**Assumption:** Users can grasp the concept of "delegating tasks to an agent" rather than "chatting with AI," and will use the system accordingly.
 
-**RAG & Memory:**
-- ✅ System can index and retrieve project files
-- ✅ Agent can reference uploaded documents in tasks
-- ✅ Conversation summaries are generated and stored
-- ✅ Project-level facts are persisted across tasks
+**Validation Method:**
+- Observe 5 test users attempting to create and execute their first task
+- Measure time to first successful task creation
+- Ask users to explain the difference between conversation and task
 
-**Model Integration:**
-- ✅ System supports OpenAI-compatible APIs
-- ✅ System supports Anthropic API natively
-- ✅ Users can configure default models
-- ✅ Tasks can override model selection
+**Success Criteria:**
+- ✅ 4 out of 5 users successfully create a task within 5 minutes
+- ✅ 4 out of 5 users can articulate "conversation is for discussion, task is for execution"
+- ✅ Users naturally click "Create Task" button rather than expecting every message to execute
 
-### Quality Indicators
+**Failure Signals:**
+- Users confused about when tasks are created
+- Users expect immediate execution from every message
+- Users don't understand why conversation and task are separate
 
-**Reliability:**
-- Task success rate > 80% for well-defined goals
-- Sandbox creation time < 10 seconds
-- No data loss on task failure
-- Graceful handling of tool errors
+#### Hypothesis 2: Agent Can Reliably Complete Typical Tasks
 
-**Observability:**
-- All tool calls logged with parameters and results
-- Task state transitions tracked
-- Error messages are actionable
-- Execution time tracked per step
+**Assumption:** The single-agent execution loop with available tools can successfully complete common task types (research, web generation, file analysis) at least 80% of the time.
 
-**User Experience:**
-- Real-time updates appear within 1 second
-- UI remains responsive during long-running tasks
-- Clear error messages when tasks fail
-- Intuitive project file browser
+**Validation Method:**
+- Execute 30 tasks across three categories (10 each):
+  - Research reports (e.g., "Research company X and create report")
+  - Web page generation (e.g., "Create landing page with pricing")
+  - File analysis (e.g., "Analyze this CSV and summarize findings")
+- Track success rate, failure reasons, execution time
+
+**Success Criteria:**
+- ✅ Overall success rate ≥ 80% (24+ successful out of 30)
+- ✅ Average execution time < 5 minutes for research tasks
+- ✅ Average execution time < 3 minutes for web generation
+- ✅ Failures are due to external factors (network, API limits), not system bugs
+
+**Failure Signals:**
+- Success rate < 70%
+- Agent gets stuck in loops or makes no progress
+- Tool execution fails frequently
+- Sandbox crashes or timeouts are common
+
+#### Hypothesis 3: Users Can Understand and Trust the Execution Process
+
+**Assumption:** Real-time step-by-step updates provide sufficient transparency for users to understand what the agent is doing and trust the process.
+
+**Validation Method:**
+- Show 5 users a running task with real-time updates
+- After task completes, ask users to describe what the agent did
+- Measure user confidence in results
+
+**Success Criteria:**
+- ✅ 4 out of 5 users can accurately describe the main steps the agent took
+- ✅ 4 out of 5 users express confidence in the results ("I trust this output")
+- ✅ Users can identify when agent is stuck or making errors
+- ✅ Users understand tool calls (e.g., "agent opened browser and searched")
+
+**Failure Signals:**
+- Users say "I don't know what it's doing"
+- Users can't explain the execution process
+- Users don't trust results without manual verification
+- Real-time updates are too technical or too vague
+
+#### Hypothesis 4: Artifacts Have Value and Get Saved to Projects
+
+**Assumption:** The artifacts produced by tasks are valuable enough that users will save them to project directories and reference them in future work.
+
+**Validation Method:**
+- Track artifact save rate across 30 completed tasks
+- Track how often saved project files are referenced in subsequent tasks
+- Ask users if artifacts met their expectations
+
+**Success Criteria:**
+- ✅ Artifact save rate ≥ 60% (users save 18+ out of 30 artifacts)
+- ✅ Saved project files referenced in ≥ 40% of follow-up tasks
+- ✅ 4 out of 5 users say artifacts are "useful" or "very useful"
+- ✅ Users organize artifacts into project directories (not just dump in root)
+
+**Failure Signals:**
+- Save rate < 40% (users don't find artifacts valuable)
+- Saved files never referenced again
+- Users manually recreate content instead of using artifacts
+- Users complain about artifact quality or format
+
+### Minimum Viable Feature Set
+
+To validate the above hypotheses, the MVP must include:
+
+**Essential Features:**
+- ✅ Project creation and directory structure
+- ✅ Conversation interface (separate from task execution)
+- ✅ Explicit task creation flow
+- ✅ Isolated sandbox per task run
+- ✅ Real-time execution updates (step-by-step)
+- ✅ Tool system (browser, file, python, web)
+- ✅ Artifact generation and download
+- ✅ Save artifact to project directory
+- ✅ Task retry (creates new run)
+- ✅ Basic RAG for project files
+
+**Acceptable Limitations for MVP:**
+- Single-agent only (no multi-agent)
+- Limited skill templates (3 types)
+- Basic error handling (no auto-recovery)
+- Simple memory (no complex knowledge graphs)
+- Manual task creation (no auto-task-detection)
 
 ## 12. Implementation Phases
 
