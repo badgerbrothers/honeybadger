@@ -1,0 +1,9 @@
+.playwright-mcp
+.env
+.venv
+node_modules
+.pytest_cache
+.ruff_cache
+.vscode
+__pycache__.claude/settings.local.json
+repos/
