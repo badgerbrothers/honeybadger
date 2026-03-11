@@ -8,3 +8,33 @@ node_modules
 __pycache__
 .claude/settings.local.json
 repos/
+
+# Python (additional)
+*.py[cod]
+*$py.class
+*.so
+.uv/
+*.egg-info/
+dist/
+build/
+
+# Node.js (additional)
+.next/
+out/
+*.log
+npm-debug.log*
+
+# Environment (additional)
+.env.local
+
+# IDE (additional)
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+*.pid
