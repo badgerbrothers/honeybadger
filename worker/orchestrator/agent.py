@@ -33,7 +33,11 @@ class Agent:
             self.messages.append(Message(role="system", content=system_prompt))
         self.messages.append(Message(role="user", content=goal))
 
-        tool_schemas = [tool.to_openai_tool() for tool in self.tools.values()]
+        # Detect provider type and use appropriate tool format
+        if hasattr(self.model, '__class__') and 'Anthropic' in self.model.__class__.__name__:
+            tool_schemas = [tool.to_anthropic_tool() for tool in self.tools.values()]
+        else:
+            tool_schemas = [tool.to_openai_tool() for tool in self.tools.values()]
 
         while self.iteration < self.max_iterations:
             self.iteration += 1

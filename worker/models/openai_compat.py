@@ -31,10 +31,13 @@ class OpenAIProvider(ModelProvider):
 
             tool_calls = None
             if choice.message.tool_calls:
-                tool_calls = [
-                    ToolCall(id=tc.id, name=tc.function.name, arguments=json.loads(tc.function.arguments))
-                    for tc in choice.message.tool_calls
-                ]
+                try:
+                    tool_calls = [
+                        ToolCall(id=tc.id, name=tc.function.name, arguments=json.loads(tc.function.arguments))
+                        for tc in choice.message.tool_calls
+                    ]
+                except json.JSONDecodeError as e:
+                    raise ModelError(f"Invalid JSON in tool arguments: {e}")
 
             return ModelResponse(
                 content=choice.message.content,
