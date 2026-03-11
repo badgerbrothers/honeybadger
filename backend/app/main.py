@@ -1,7 +1,7 @@
 """FastAPI application entry point."""
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import projects
+from app.routers import projects, conversations, tasks
 
 app = FastAPI(title="Badgers MVP Backend")
 
@@ -14,6 +14,8 @@ app.add_middleware(
 )
 
 app.include_router(projects.router)
+app.include_router(conversations.router)
+app.include_router(tasks.router)
 
 @app.get("/health")
 async def health_check():

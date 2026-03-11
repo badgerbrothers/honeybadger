@@ -6,6 +6,7 @@ from app.models.conversation import MessageRole
 
 class ConversationCreate(BaseModel):
     """Schema for creating a conversation."""
+    project_id: uuid.UUID
     title: str | None = Field(None, max_length=255)
 
 class ConversationUpdate(BaseModel):

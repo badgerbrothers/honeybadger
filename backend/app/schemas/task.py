@@ -6,6 +6,8 @@ from app.models.task import TaskStatus
 
 class TaskCreate(BaseModel):
     """Schema for creating a task."""
+    conversation_id: uuid.UUID
+    project_id: uuid.UUID
     goal: str = Field(..., min_length=1)
     skill: str | None = Field(None, max_length=100)
 
