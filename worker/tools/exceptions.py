@@ -24,3 +24,13 @@ class BrowserSelectorError(BrowserToolError):
 class BrowserNavigationError(BrowserToolError):
     """Failed to navigate to URL."""
     pass
+
+
+class PythonExecutionError(ToolError):
+    """Python code execution failed."""
+    pass
+
+
+class PythonTimeoutError(PythonExecutionError):
+    """Python execution timed out."""
+    pass
