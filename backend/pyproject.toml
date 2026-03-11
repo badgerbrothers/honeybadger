@@ -22,9 +22,13 @@ dependencies = [
 dev-dependencies = [
     "pytest>=7.4.0",
     "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.1.0",
     "ruff>=0.1.0",
 ]
 
 [tool.ruff]
 extend-ignore = ["F821"]
 per-file-ignores = {"app/models/*.py" = ["F821"]}
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
