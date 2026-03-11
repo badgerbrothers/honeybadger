@@ -17,6 +17,9 @@ repos/
 *.egg-info/
 dist/
 build/
+.coverage
+.coverage.*
+htmlcov/
 
 # Node.js (additional)
 .next/
