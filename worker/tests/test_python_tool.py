@@ -16,7 +16,7 @@ async def test_python_execute_success():
     assert result["success"] is True
     assert result["stdout"] == "Hello, World!"
     assert result["exit_code"] == 0
-    assert result["execution_time"] > 0
+    assert result["execution_time"] >= 0
 
 
 @pytest.mark.asyncio

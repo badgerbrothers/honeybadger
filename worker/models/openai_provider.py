@@ -37,6 +37,9 @@ class OpenAIProvider(BaseModelProvider):
                 total_tokens=response.usage.total_tokens,
             ) if response.usage else None
 
+            if not response.choices:
+                raise ProviderError("OpenAI returned empty choices", provider="openai")
+
             return CompletionResponse(
                 content=response.choices[0].message.content or "",
                 model=response.model,

@@ -51,8 +51,11 @@ class AnthropicProvider(BaseModelProvider):
                 total_tokens=response.usage.input_tokens + response.usage.output_tokens,
             )
 
+            if not response.content:
+                raise ProviderError("Anthropic returned empty content", provider="anthropic")
+
             return CompletionResponse(
-                content=response.content[0].text if response.content else "",
+                content=response.content[0].text,
                 model=response.model,
                 usage=usage,
             )

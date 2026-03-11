@@ -26,17 +26,23 @@ class PdfParser(BaseParser):
             raise ParseError(f"Failed to read PDF: {e}")
 
         text_parts = []
-        for page in reader.pages:
+        failed_pages = []
+        for i, page in enumerate(reader.pages):
             try:
                 text_parts.append(page.extract_text())
-            except Exception as e:
-                raise ParseError(f"Failed to extract text from page: {e}")
+            except Exception:
+                failed_pages.append(i + 1)
+
+        if not text_parts:
+            raise ParseError("Failed to extract text from any page")
 
         text = "\n\n--- Page Break ---\n\n".join(text_parts)
 
         metadata = {
             "page_count": len(reader.pages),
         }
+        if failed_pages:
+            metadata["failed_pages"] = failed_pages
 
         if reader.metadata:
             if reader.metadata.author:
