@@ -1,4 +1,4 @@
-# Manus MVP 实施计划（简化版）
+# Badgers MVP 实施计划（简化版）
 
 ## Phase 1: Foundation（第 1-2 周）
 

@@ -1,5 +1,5 @@
 [project]
-name = "manus-backend"
+name = "badgers-backend"
 version = "0.1.0"
 description = "Manus MVP Backend API"
 requires-python = ">=3.11"

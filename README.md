@@ -1,4 +1,4 @@
-# Manus MVP
+# Badgers MVP
 
 An AI-powered task execution platform where users delegate complex, multi-step workflows to an autonomous agent. The agent executes tasks in isolated Docker sandboxes using real tools (browser, code, files), producing persistent artifacts that save to project directories.
 
@@ -60,7 +60,7 @@ npm install
 npm run dev
 ```
 
-Navigate to **http://localhost:3000** to start using Manus.
+Navigate to **http://localhost:3000** to start using Badgers.
 
 ## Architecture
 
@@ -145,14 +145,14 @@ Key environment variables (see `.env.example`):
 
 ```bash
 # Database
-DATABASE_URL=postgresql://user:pass@localhost:5432/manus
+DATABASE_URL=postgresql://user:pass@localhost:5432/badgers
 
 # Redis
 REDIS_URL=redis://localhost:6379/0
 
 # Object Storage
 S3_ENDPOINT=http://localhost:9000
-S3_BUCKET=manus-artifacts
+S3_BUCKET=badgers-artifacts
 
 # Model Providers
 OPENAI_API_KEY=your-key
@@ -183,7 +183,7 @@ npx playwright test
 ### Project Structure
 
 ```
-manus-mvp/
+badgers-mvp/
 ├── backend/          # FastAPI application
 ├── worker/           # Task execution worker
 ├── frontend/         # Next.js application
@@ -220,7 +220,7 @@ Slash commands for Claude Code to assist with development workflows:
 ## Documentation
 
 - **PRD**: `.claude/PRD.md` - Complete product requirements and architecture
-- **Requirements**: `docs/manus-mvp-requirements.md` - Original detailed requirements (Chinese)
+- **Requirements**: `docs/badgers-mvp-requirements.md` - Original detailed requirements (Chinese)
 - **API Docs**: http://localhost:8000/docs - Interactive API documentation
 
 ## License

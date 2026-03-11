@@ -1,8 +1,8 @@
-# Manus MVP 实施计划
+# Badgers MVP 实施计划
 
 ## 文档说明
 
-本文档将 Manus MVP PRD 中定义的 4 个实施阶段分解为具体的、可执行的 plan。每个 plan 设计为 2-4 小时可完成的独立任务。
+本文档将 Badgers MVP PRD 中定义的 4 个实施阶段分解为具体的、可执行的 plan。每个 plan 设计为 2-4 小时可完成的独立任务。
 
 **使用方法：**
 1. 按顺序执行每个 plan
@@ -23,7 +23,7 @@
 
 **任务描述：**
 ```
-实施 Manus MVP 项目基础结构和开发环境设置
+实施 Badgers MVP 项目基础结构和开发环境设置
 
 创建内容：
 1. 项目目录结构（backend/、worker/、frontend/、shared/、docker/）
@@ -57,7 +57,7 @@
 
 **任务描述：**
 ```
-实施 Manus MVP 数据库模式
+实施 Badgers MVP 数据库模式
 
 创建模型：
 1. Project（项目）
@@ -96,7 +96,7 @@
 
 **任务描述：**
 ```
-实施 Manus MVP Pydantic Schemas
+实施 Badgers MVP Pydantic Schemas
 
 创建 schemas：
 1. Project schemas（ProjectCreate、ProjectResponse）

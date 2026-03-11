@@ -5,9 +5,9 @@ services:
   postgres:
     image: postgres:15
     environment:
-      POSTGRES_USER: manus
-      POSTGRES_PASSWORD: manus_dev_password
-      POSTGRES_DB: manus
+      POSTGRES_USER: badgers
+      POSTGRES_PASSWORD: badgers_dev_password
+      POSTGRES_DB: badgers
     ports:
       - "5432:5432"
     volumes:
@@ -24,8 +24,8 @@ services:
     image: minio/minio:latest
     command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: manus
-      MINIO_ROOT_PASSWORD: manus_dev_password
+      MINIO_ROOT_USER: badgers
+      MINIO_ROOT_PASSWORD: badgers_dev_password
     ports:
       - "9000:9000"
       - "9001:9001"

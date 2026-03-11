@@ -1,4 +1,4 @@
-# Manus MVP
+# Badgers MVP
 
 An AI-powered task execution platform that enables users to delegate complex, multi-step workflows to an autonomous agent with isolated execution environments.
 
@@ -14,7 +14,7 @@ An AI-powered task execution platform that enables users to delegate complex, mu
 ## Project Structure
 
 ```
-manus-mvp/
+badgers-mvp/
 ├── backend/
 │   ├── app/
 │   │   ├── main.py           # FastAPI entry point
@@ -82,7 +82,7 @@ Read these documents when working on specific areas:
 | Document | When to Read |
 |----------|--------------|
 | `.claude/PRD.md` | Understanding requirements, features, architecture, API spec |
-| `docs/manus-mvp-requirements.md` | Original detailed requirements (Chinese) |
+| `docs/badgers-mvp-requirements.md` | Original detailed requirements (Chinese) |
 
 ## Core Concepts
 

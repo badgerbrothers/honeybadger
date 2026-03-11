@@ -1,5 +1,5 @@
 [project]
-name = "manus-worker"
+name = "badgers-worker"
 version = "0.1.0"
 description = "Manus MVP Task Execution Worker"
 requires-python = ">=3.11"

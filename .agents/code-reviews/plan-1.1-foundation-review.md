@@ -36,7 +36,7 @@ Reviewed the initial project foundation setup (Plan 1.1). The code establishes b
 ```python
 class Settings(BaseSettings):
     # Development defaults - DO NOT use in production
-    database_url: str = "postgresql://manus:manus_dev_password@localhost:5432/manus"
+    database_url: str = "postgresql://badgers:badgers_dev_password@localhost:5432/badgers"
     redis_url: str = "redis://localhost:6379/0"
     environment: str = "development"  # Add this field
 ```

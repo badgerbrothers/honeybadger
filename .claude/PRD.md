@@ -1,8 +1,8 @@
-# Manus MVP - Product Requirements Document
+# Badgers MVP - Product Requirements Document
 
 ## 1. Executive Summary
 
-Manus MVP is an AI-powered task execution platform that enables users to delegate complex, multi-step workflows to an autonomous agent. Unlike traditional chatbots, Manus creates isolated execution environments (sandboxes) for each task, allowing the agent to use real tools—browsers, code interpreters, file systems—to accomplish goals like generating research reports, building web pages, or analyzing documents.
+Badgers MVP is an AI-powered task execution platform that enables users to delegate complex, multi-step workflows to an autonomous agent. Unlike traditional chatbots, Badgers creates isolated execution environments (sandboxes) for each task, allowing the agent to use real tools—browsers, code interpreters, file systems—to accomplish goals like generating research reports, building web pages, or analyzing documents.
 
 The core innovation is the task execution loop: users initiate tasks through conversations, the system creates a dedicated sandbox, the agent executes multiple steps using available tools, and results are captured as artifacts that persist in project directories. This transforms AI from a conversational assistant into an autonomous worker capable of producing tangible deliverables.
 
@@ -207,7 +207,7 @@ The MVP validates whether a single-agent execution model can reliably complete r
 ### Directory Structure
 
 ```
-manus-mvp/
+badgers-mvp/
 ├── frontend/                 # Next.js application
 │   ├── src/
 │   │   ├── app/             # App router pages
@@ -392,7 +392,7 @@ The system distinguishes three types of files with different lifecycles:
 - **Cleanup:** Deleted N hours after run completion (configurable, default 2 hours)
 
 **Layer 2: Artifacts**
-- **Location:** MinIO/S3 object storage (`s3://manus-artifacts/{run_id}/{filename}`)
+- **Location:** MinIO/S3 object storage (`s3://badgers-artifacts/{run_id}/{filename}`)
 - **Lifecycle:** Extracted from sandbox at task completion, retained 30 days
 - **Purpose:** Deliverables worth preserving (reports, screenshots, generated code)
 - **Access:** Via API (`GET /artifacts/{artifact_id}/download`)
@@ -677,8 +677,8 @@ class Skill:
 **Environment Variables:**
 ```bash
 # Database
-DATABASE_URL=postgresql://user:pass@localhost:5432/manus
-POSTGRES_USER=manus
+DATABASE_URL=postgresql://user:pass@localhost:5432/badgers
+POSTGRES_USER=badgers
 POSTGRES_PASSWORD=<secure-password>
 
 # Redis
@@ -688,7 +688,7 @@ REDIS_URL=redis://localhost:6379/0
 S3_ENDPOINT=http://localhost:9000
 S3_ACCESS_KEY=<access-key>
 S3_SECRET_KEY=<secret-key>
-S3_BUCKET=manus-artifacts
+S3_BUCKET=badgers-artifacts
 
 # Model Providers
 OPENAI_API_KEY=<key>
@@ -1436,7 +1436,7 @@ To validate the above hypotheses, the MVP must include:
 
 ### Related Documents
 
-- **Original Requirements:** `docs/manus-mvp-requirements.md` - Detailed Chinese-language requirements document
+- **Original Requirements:** `docs/badgers-mvp-requirements.md` - Detailed Chinese-language requirements document
 - **Architecture Diagrams:** To be created in Phase 1
 - **API Documentation:** Auto-generated via FastAPI OpenAPI at `/docs`
 - **User Guide:** To be created in Phase 4
@@ -1463,12 +1463,12 @@ To validate the above hypotheses, the MVP must include:
 ### Repository Structure
 
 ```
-manus-mvp/
+badgers-mvp/
 ├── README.md                 # Project overview and setup
 ├── docker-compose.yml        # Local development stack
 ├── .env.example              # Environment variable template
 ├── docs/                     # Documentation
-│   ├── manus-mvp-requirements.md
+│   ├── badgers-mvp-requirements.md
 │   ├── architecture.md
 │   └── api.md
 ├── frontend/                 # Next.js application

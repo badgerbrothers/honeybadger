@@ -2,7 +2,7 @@
 
 ## Feature Description
 
-创建Manus MVP项目的完整目录结构、配置文件和开发环境。这是项目的第一步，为后续所有开发工作建立标准化的基础设施。
+创建Badgers MVP项目的完整目录结构、配置文件和开发环境。这是项目的第一步，为后续所有开发工作建立标准化的基础设施。
 
 ## User Story
 
@@ -214,9 +214,9 @@ touch shared/utils/__init__.py
 **CONTENT**:
 ```toml
 [project]
-name = "manus-backend"
+name = "badgers-backend"
 version = "0.1.0"
-description = "Manus MVP Backend API"
+description = "Badgers MVP Backend API"
 requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.110.0",
@@ -249,9 +249,9 @@ dev-dependencies = [
 **CONTENT**:
 ```toml
 [project]
-name = "manus-worker"
+name = "badgers-worker"
 version = "0.1.0"
-description = "Manus MVP Task Execution Worker"
+description = "Badgers MVP Task Execution Worker"
 requires-python = ">=3.11"
 dependencies = [
     "docker>=7.0.0",
@@ -287,7 +287,7 @@ dev-dependencies = [
 **CONTENT**:
 ```json
 {
-  "name": "manus-frontend",
+  "name": "badgers-frontend",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -422,9 +422,9 @@ services:
   postgres:
     image: postgres:15
     environment:
-      POSTGRES_USER: manus
-      POSTGRES_PASSWORD: manus_dev_password
-      POSTGRES_DB: manus
+      POSTGRES_USER: badgers
+      POSTGRES_PASSWORD: badgers_dev_password
+      POSTGRES_DB: badgers
     ports:
       - "5432:5432"
     volumes:
@@ -441,8 +441,8 @@ services:
     image: minio/minio:latest
     command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: manus
-      MINIO_ROOT_PASSWORD: manus_dev_password
+      MINIO_ROOT_USER: badgers
+      MINIO_ROOT_PASSWORD: badgers_dev_password
     ports:
       - "9000:9000"
       - "9001:9001"
@@ -465,19 +465,19 @@ volumes:
 **CONTENT**:
 ```bash
 # Database
-DATABASE_URL=postgresql://manus:manus_dev_password@localhost:5432/manus
-POSTGRES_USER=manus
-POSTGRES_PASSWORD=manus_dev_password
-POSTGRES_DB=manus
+DATABASE_URL=postgresql://badgers:badgers_dev_password@localhost:5432/badgers
+POSTGRES_USER=badgers
+POSTGRES_PASSWORD=badgers_dev_password
+POSTGRES_DB=badgers
 
 # Redis
 REDIS_URL=redis://localhost:6379/0
 
 # Object Storage (MinIO)
 S3_ENDPOINT=http://localhost:9000
-S3_ACCESS_KEY=manus
-S3_SECRET_KEY=manus_dev_password
-S3_BUCKET=manus-artifacts
+S3_ACCESS_KEY=badgers
+S3_SECRET_KEY=badgers_dev_password
+S3_BUCKET=badgers-artifacts
 
 # Model Providers
 OPENAI_API_KEY=your-openai-api-key-here
@@ -553,7 +553,7 @@ Thumbs.db
 """FastAPI application entry point."""
 from fastapi import FastAPI
 
-app = FastAPI(title="Manus MVP Backend")
+app = FastAPI(title="Badgers MVP Backend")
 
 @app.get("/health")
 async def health_check():
@@ -566,7 +566,7 @@ async def health_check():
 from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
-    database_url: str = "postgresql://manus:manus_dev_password@localhost:5432/manus"
+    database_url: str = "postgresql://badgers:badgers_dev_password@localhost:5432/badgers"
     redis_url: str = "redis://localhost:6379/0"
     
     class Config:
@@ -612,7 +612,7 @@ WORKDIR /workspace
 CMD ["/bin/bash"]
 ```
 
-**VALIDATE**: `docker build -t manus-sandbox-base docker/sandbox-base/` (应成功构建)
+**VALIDATE**: `docker build -t badgers-sandbox-base docker/sandbox-base/` (应成功构建)
 
 
 ### Task 15: VERIFY README.md
@@ -716,7 +716,7 @@ sleep 5
 docker-compose ps
 
 # 验证PostgreSQL
-docker-compose exec postgres pg_isready -U manus
+docker-compose exec postgres pg_isready -U badgers
 
 # 验证Redis
 docker-compose exec redis redis-cli ping
