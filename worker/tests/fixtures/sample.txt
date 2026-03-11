@@ -1,0 +1,4 @@
+Hello World!
+This is a test document.
+It contains multiple lines.
+Special chars: café, naïve, 你好
