@@ -1,2 +1,28 @@
-"""Database connection setup."""
-# Placeholder for SQLAlchemy setup
+"""Database connection and session management."""
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
+from .config import settings
+from .models.base import Base
+
+# Create async engine
+engine = create_async_engine(
+    settings.database_url.replace("postgresql://", "postgresql+asyncpg://"),
+    echo=False,
+    pool_pre_ping=True,
+)
+
+# Create async session maker
+async_session_maker = async_sessionmaker(
+    engine,
+    class_=AsyncSession,
+    expire_on_commit=False,
+)
+
+async def get_db():
+    """Dependency for FastAPI to get database session."""
+    async with async_session_maker() as session:
+        yield session
+
+async def init_db():
+    """Initialize database tables (for development only)."""
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
