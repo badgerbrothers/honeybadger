@@ -7,10 +7,9 @@ from models.exceptions import ConfigurationError
 from models.openai_provider import OpenAIProvider
 from models.anthropic_provider import AnthropicProvider
 
-@patch('models.factory.settings')
+@patch('config.settings')
 def test_create_openai_provider(mock_settings):
     """Test OpenAI provider creation."""
-    mock_settings.model_provider = ProviderType.OPENAI
     mock_settings.openai_api_key = "test-key"
     mock_settings.default_model = "gpt-4"
     mock_settings.temperature = 0.7
@@ -20,7 +19,7 @@ def test_create_openai_provider(mock_settings):
     assert isinstance(provider, OpenAIProvider)
     assert provider.model == "gpt-4"
 
-@patch('models.factory.settings')
+@patch('config.settings')
 def test_create_anthropic_provider(mock_settings):
     """Test Anthropic provider creation."""
     mock_settings.anthropic_api_key = "test-key"
@@ -31,19 +30,24 @@ def test_create_anthropic_provider(mock_settings):
     provider = create_model_provider(provider=ProviderType.ANTHROPIC)
     assert isinstance(provider, AnthropicProvider)
 
-@patch('models.factory.settings')
+@patch('config.settings')
 def test_missing_openai_key(mock_settings):
     """Test missing OpenAI API key raises error."""
-    mock_settings.model_provider = ProviderType.OPENAI
     mock_settings.openai_api_key = None
+    mock_settings.default_model = "gpt-4"
+    mock_settings.temperature = 0.7
+    mock_settings.max_tokens = 2000
 
     with pytest.raises(ConfigurationError):
         create_model_provider()
 
-@patch('models.factory.settings')
+@patch('config.settings')
 def test_missing_anthropic_key(mock_settings):
     """Test missing Anthropic API key raises error."""
     mock_settings.anthropic_api_key = None
+    mock_settings.default_model = "claude-3-opus-20240229"
+    mock_settings.temperature = 0.7
+    mock_settings.max_tokens = 2000
 
     with pytest.raises(ConfigurationError):
         create_model_provider(provider=ProviderType.ANTHROPIC)

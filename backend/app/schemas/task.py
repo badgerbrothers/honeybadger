@@ -10,6 +10,7 @@ class TaskCreate(BaseModel):
     project_id: uuid.UUID
     goal: str = Field(..., min_length=1)
     skill: str | None = Field(None, max_length=100)
+    model: str | None = Field(None, max_length=100)
 
 class TaskUpdate(BaseModel):
     """Schema for updating a task."""

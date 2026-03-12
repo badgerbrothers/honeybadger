@@ -10,6 +10,8 @@ class Settings(BaseSettings):
     openai_api_key: str | None = None
     anthropic_api_key: str | None = None
     default_model: str = "gpt-4"
+    default_openai_model: str = "gpt-4-turbo"
+    default_anthropic_model: str = "claude-3-opus-20240229"
     temperature: float = 0.7
     max_tokens: int = 2000
 

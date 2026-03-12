@@ -4,7 +4,7 @@ from models.openai_provider import OpenAIProvider
 from models.anthropic_provider import AnthropicProvider
 from models.types import ProviderType, ModelConfig
 from models.exceptions import ConfigurationError
-from config import settings
+from models.router import ModelRouter
 
 def create_model_provider(
     provider: ProviderType | None = None,
@@ -12,12 +12,18 @@ def create_model_provider(
     config: ModelConfig | None = None,
 ) -> BaseModelProvider:
     """Create a model provider instance."""
-    provider = provider or settings.model_provider
+    from config import settings
+
+    router = ModelRouter()
     model = model or settings.default_model
     config = config or ModelConfig(
         temperature=settings.temperature,
         max_tokens=settings.max_tokens,
     )
+
+    # Auto-determine provider from model if not specified
+    if provider is None:
+        provider = router.route(model)
 
     if provider == ProviderType.OPENAI:
         if not settings.openai_api_key:
