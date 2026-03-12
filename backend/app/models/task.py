@@ -42,6 +42,7 @@ class TaskRun(Base, TimestampMixin):
     completed_at: Mapped[datetime | None] = mapped_column(nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     logs: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    working_memory: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
     # Relationships
     task: Mapped["Task"] = relationship(back_populates="runs", foreign_keys=[task_id])

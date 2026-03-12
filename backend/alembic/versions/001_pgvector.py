@@ -8,7 +8,7 @@ Create Date: 2026-03-11
 from alembic import op
 
 revision = '001_pgvector'
-down_revision = None
+down_revision = '1004c8374fe5'
 branch_labels = None
 depends_on = None
 
