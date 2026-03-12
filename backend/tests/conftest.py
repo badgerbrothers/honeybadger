@@ -1,24 +1,16 @@
 """Test configuration and fixtures."""
 import pytest
-import asyncio
+import pytest_asyncio
 
-@pytest.fixture(scope="session", autouse=True)
-def init_test_db():
+@pytest_asyncio.fixture(scope="session", autouse=True)
+async def init_test_db():
     """Initialize database tables before tests."""
     from app.database import init_db
-    asyncio.run(init_db())
+    await init_db()
 
-@pytest.fixture(scope="function")
-def event_loop():
-    """Create a new event loop for each test."""
-    loop = asyncio.new_event_loop()
-    yield loop
-    loop.close()
-
-@pytest.fixture(autouse=True)
-def reset_db():
-    """Reset database connections between tests."""
+@pytest_asyncio.fixture(scope="function", autouse=True)
+async def cleanup_db():
+    """Cleanup database connections after each test."""
     yield
-    # After each test, dispose the engine to close all connections
     from app.database import engine
-    asyncio.run(engine.dispose())
+    await engine.dispose()

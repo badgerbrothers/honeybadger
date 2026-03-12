@@ -1,6 +1,6 @@
 """Unit tests for document retrieval."""
 import pytest
-from unittest.mock import Mock, AsyncMock, patch
+from unittest.mock import Mock, AsyncMock
 from rag.retriever import DocumentRetriever
 
 

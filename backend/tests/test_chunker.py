@@ -1,5 +1,4 @@
 """Unit tests for chunking logic."""
-import pytest
 from rag.chunker import chunk_text
 
 
