@@ -41,7 +41,7 @@ class ProjectNodeUpdate(BaseModel):
 class ProjectNodeResponse(BaseModel):
     """Schema for project node API responses."""
     model_config = ConfigDict(from_attributes=True)
-    
+
     id: uuid.UUID
     project_id: uuid.UUID
     parent_id: uuid.UUID | None
@@ -51,3 +51,15 @@ class ProjectNodeResponse(BaseModel):
     size: int | None
     created_at: datetime
     updated_at: datetime
+
+class ProjectFileUploadResponse(BaseModel):
+    """Schema for file upload response."""
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    project_id: uuid.UUID
+    name: str
+    path: str
+    size: int
+    mime_type: str | None
+    created_at: datetime
