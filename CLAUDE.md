@@ -109,8 +109,14 @@ Agent has access to these tools:
 
 ### Skills
 
-Lightweight task templates:
+Lightweight task templates defined in Markdown files (`worker/skills/*/SKILL.md`):
 - **research_report** - Web research and markdown report generation
 - **webpage** - HTML/CSS/JS code generation
 - **file_analysis** - Document analysis and insights
+
+Each skill defines:
+- System prompt to guide agent behavior
+- Allowed tools the agent can use
+- Output format specification
+- Example tasks
 

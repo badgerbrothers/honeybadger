@@ -1,9 +1,13 @@
 """Agent orchestration loop."""
 import uuid
 import structlog
+from typing import TYPE_CHECKING
 from models.tool_calling import ModelProvider, Message
 from tools.tool_base import Tool
 from orchestrator.exceptions import AgentExecutionError, MaxIterationsError
+
+if TYPE_CHECKING:
+    from skills.base import Skill
 
 logger = structlog.get_logger(__name__)
 
@@ -16,11 +20,21 @@ class Agent:
         task_run_id: uuid.UUID,
         model: ModelProvider,
         tools: list[Tool],
-        max_iterations: int = 20
+        max_iterations: int = 20,
+        skill: "Skill | None" = None
     ):
         self.task_run_id = task_run_id
         self.model = model
-        self.tools = {tool.name: tool for tool in tools}
+        self.skill = skill
+
+        # Filter tools based on skill's allowed_tools if skill is provided
+        if skill:
+            filtered_tools = [t for t in tools if t.name in skill.allowed_tools]
+            self.tools = {tool.name: tool for tool in filtered_tools}
+            logger.info("skill_applied", task_run_id=str(self.task_run_id), skill=skill.name, tools_count=len(filtered_tools))
+        else:
+            self.tools = {tool.name: tool for tool in tools}
+
         self.max_iterations = max_iterations
         self.messages: list[Message] = []
         self.iteration = 0
@@ -28,6 +42,10 @@ class Agent:
     async def run(self, goal: str, system_prompt: str | None = None) -> str:
         """Execute agent loop until completion."""
         logger.info("agent_started", task_run_id=str(self.task_run_id), goal=goal)
+
+        # Use skill's system prompt if skill is provided and no explicit system_prompt
+        if self.skill and not system_prompt:
+            system_prompt = self.skill.system_prompt
 
         if system_prompt:
             self.messages.append(Message(role="system", content=system_prompt))

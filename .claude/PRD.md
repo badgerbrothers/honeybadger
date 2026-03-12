@@ -538,34 +538,47 @@ Each tool follows a unified interface with consistent parameter structure and re
 
 ### Skill System
 
-Skills are lightweight task templates that configure the agent's behavior for specific task types.
+Skills are lightweight task templates defined in Markdown files that configure the agent's behavior for specific task types.
 
-**Skill Structure:**
-```python
-class Skill:
-    name: str
-    description: str
-    system_prompt: str
-    allowed_tools: List[str]
-    output_format: str
-    example_tasks: List[str]
+**Skill Format:**
+
+Each skill is defined in a `SKILL.md` file with YAML frontmatter and Markdown content:
+
+```markdown
+---
+name: skill_name
+description: Brief description
+allowed_tools:
+  - tool.name1
+  - tool.name2
+output_format: Expected output format
+---
+
+# Skill Title
+
+## System Prompt
+Detailed instructions for the agent...
+
+## Example Tasks
+- Example task 1
+- Example task 2
 ```
 
 **Built-in Skills:**
 
-1. **Research Report Skill**
+1. **Research Report Skill** (`worker/skills/research_report/SKILL.md`)
    - System prompt: "You are a research assistant. Search for information, extract key facts, and generate a structured markdown report with citations."
-   - Allowed tools: browser.*, web.fetch, file.write, final.answer
+   - Allowed tools: browser.open, browser.extract, browser.screenshot, web.fetch, file.write, final.answer
    - Output format: Markdown report with sections (Executive Summary, Findings, Sources)
 
-2. **Web Page Generation Skill**
+2. **Web Page Generation Skill** (`worker/skills/webpage/SKILL.md`)
    - System prompt: "You are a web developer. Generate clean, responsive HTML/CSS/JS code following modern best practices."
-   - Allowed tools: file.write, python.run (for templating), final.answer
+   - Allowed tools: file.write, python.run, final.answer
    - Output format: HTML file with embedded CSS/JS or separate files
 
-3. **File Analysis Skill**
+3. **File Analysis Skill** (`worker/skills/file_analysis/SKILL.md`)
    - System prompt: "You are a data analyst. Read files, extract insights, and generate summary reports."
-   - Allowed tools: file.read, python.run, file.write, final.answer
+   - Allowed tools: file.read, file.list, python.run, file.write, final.answer
    - Output format: Analysis report with key findings and visualizations
 
 ## 8. Technology Stack
