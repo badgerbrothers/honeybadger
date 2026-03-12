@@ -1,4 +1,5 @@
 """Database connection and session management."""
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from .config import settings
 from .models.base import Base
@@ -25,4 +26,11 @@ async def get_db():
 async def init_db():
     """Initialize database tables (for development only)."""
     async with engine.begin() as conn:
+        # Try to enable pgvector extension (skip if not installed)
+        try:
+            await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+        except Exception as e:
+            # pgvector not installed - log warning and continue
+            import logging
+            logging.warning(f"pgvector extension not available: {e}")
         await conn.run_sync(Base.metadata.create_all)

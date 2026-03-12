@@ -5,6 +5,7 @@ from .conversation import Conversation, Message, MessageRole
 from .task import Task, TaskRun, TaskStatus
 from .sandbox import SandboxSession
 from .artifact import Artifact, ArtifactType
+from .document_chunk import DocumentChunk
 
 __all__ = [
     "Base",
@@ -21,4 +22,5 @@ __all__ = [
     "SandboxSession",
     "Artifact",
     "ArtifactType",
+    "DocumentChunk",
 ]
