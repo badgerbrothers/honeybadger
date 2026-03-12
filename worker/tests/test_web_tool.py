@@ -1,6 +1,6 @@
 """Unit tests for Web Fetch tool."""
 import pytest
-from unittest.mock import AsyncMock, patch, MagicMock
+from unittest.mock import patch, MagicMock
 from tools.web import WebFetchTool, WebFetchError, WebFetchTimeoutError
 import httpx
 

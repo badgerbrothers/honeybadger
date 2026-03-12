@@ -1,6 +1,5 @@
 """Unit tests for document indexing pipeline."""
 import pytest
-import sys
 from unittest.mock import Mock, AsyncMock, patch, MagicMock
 from rag.indexer import DocumentIndexer
 
