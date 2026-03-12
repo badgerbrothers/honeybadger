@@ -34,3 +34,13 @@ class PythonExecutionError(ToolError):
 class PythonTimeoutError(PythonExecutionError):
     """Python execution timed out."""
     pass
+
+
+class WebFetchError(ToolError):
+    """Web fetch operation failed."""
+    pass
+
+
+class WebFetchTimeoutError(WebFetchError):
+    """Web fetch request timed out."""
+    pass
