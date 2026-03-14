@@ -1,9 +1,15 @@
 """Configuration management."""
-from pydantic_settings import BaseSettings
+from pydantic import AliasChoices, Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
 
 class Settings(BaseSettings):
+    """Application settings."""
+
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
     # Development defaults - DO NOT use in production
-    database_url: str = "postgresql://badgers:badgers@localhost:5432/badgers"
+    database_url: str = "postgresql://badgers:badgers_dev_password@localhost:5432/badgers"
     redis_url: str = "redis://localhost:6379/0"
 
     # OpenAI API
@@ -15,14 +21,27 @@ class Settings(BaseSettings):
     chunk_size: int = 512
     chunk_overlap: int = 50
 
-    # MinIO Configuration
-    minio_endpoint: str = "localhost:9000"
-    minio_access_key: str = "minioadmin"
-    minio_secret_key: str = "minioadmin"
-    minio_bucket: str = "artifacts"
-    minio_secure: bool = False
+    # Object storage configuration.
+    s3_endpoint: str = Field(
+        default="localhost:9000",
+        validation_alias=AliasChoices("S3_ENDPOINT", "MINIO_ENDPOINT"),
+    )
+    s3_access_key: str = Field(
+        default="badgers",
+        validation_alias=AliasChoices("S3_ACCESS_KEY", "MINIO_ACCESS_KEY"),
+    )
+    s3_secret_key: str = Field(
+        default="badgers_dev_password",
+        validation_alias=AliasChoices("S3_SECRET_KEY", "MINIO_SECRET_KEY"),
+    )
+    s3_bucket: str = Field(
+        default="badgers-artifacts",
+        validation_alias=AliasChoices("S3_BUCKET", "MINIO_BUCKET"),
+    )
+    s3_secure: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("S3_SECURE", "MINIO_SECURE"),
+    )
 
-    class Config:
-        env_file = ".env"
 
 settings = Settings()

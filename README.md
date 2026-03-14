@@ -12,7 +12,7 @@ An AI-powered task execution platform where users delegate complex, multi-step w
 
 ## Quick Start
 
-### Option 1: Docker Compose (Recommended)
+### Option 1: Docker Compose (Infrastructure Only)
 
 ```bash
 # Copy environment template
@@ -22,17 +22,20 @@ cp .env.example .env
 # OPENAI_API_KEY=your-key
 # ANTHROPIC_API_KEY=your-key
 
-# Start all services
+# Start infrastructure services
 docker-compose up -d
 
-# View logs
+# View infrastructure logs
 docker-compose logs -f
 ```
 
-Services will be available at:
-- Frontend: http://localhost:3000
-- Backend API: http://localhost:8000
-- API Docs: http://localhost:8000/docs
+This compose file currently starts only the development dependencies:
+- PostgreSQL: `localhost:5432`
+- Redis: `localhost:6379`
+- MinIO API: `localhost:9000`
+- MinIO Console: `localhost:9001`
+
+Start `backend`, `worker`, and `frontend` separately with the manual setup below.
 
 ### Option 2: Manual Setup
 
@@ -77,7 +80,7 @@ Navigate to **http://localhost:3000** to start using Badgers.
 │  - Task API                                  │
 │  - Artifact API                              │
 └──────┬──────────────────────────────────────┘
-       │ Redis Queue
+       │ DB Polling (current scheduler baseline)
 ┌──────▼──────────────────────────────────────┐
 │      Python Worker (Execution Plane)         │
 │  - Agent Orchestrator                        │
@@ -96,11 +99,11 @@ Navigate to **http://localhost:3000** to start using Badgers.
 | Layer | Technology |
 |-------|------------|
 | Backend | Python 3.11+, FastAPI, SQLAlchemy, PostgreSQL, structlog |
-| Worker | ARQ/Celery, Docker SDK, Playwright |
+| Worker | Python worker loop, Docker SDK, Playwright |
 | Frontend | Next.js 14, React 18, TypeScript, TanStack Query, Tailwind CSS |
 | AI/ML | OpenAI SDK, Anthropic SDK, pgvector |
 | Storage | MinIO (S3-compatible), PostgreSQL |
-| Queue | Redis |
+| Queue | PostgreSQL polling today, Redis reserved for future queueing |
 
 ## Features
 
@@ -127,15 +130,16 @@ Navigate to **http://localhost:3000** to start using Badgers.
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST | `/api/v1/projects` | Create new project |
-| GET | `/api/v1/projects/{id}` | Get project details |
-| POST | `/api/v1/conversations` | Create conversation |
-| POST | `/api/v1/conversations/{id}/messages` | Send message and create task |
-| POST | `/api/v1/tasks` | Create task manually |
-| GET | `/api/v1/tasks/{id}` | Get task status |
-| WS | `/api/v1/tasks/{id}/events` | Real-time task events |
-| POST | `/api/v1/tasks/{id}/retry` | Retry failed task |
-| GET | `/api/v1/artifacts/{id}/download` | Download artifact |
+| POST | `/api/projects/` | Create new project |
+| GET | `/api/projects/{id}` | Get project details |
+| POST | `/api/conversations/` | Create conversation |
+| POST | `/api/conversations/{id}/messages` | Create conversation message |
+| POST | `/api/tasks/` | Create task manually |
+| POST | `/api/tasks/{id}/runs` | Create a new task run |
+| POST | `/api/tasks/{id}/retry` | Retry an existing task |
+| GET | `/api/runs/{id}` | Get run details |
+| WS | `/api/runs/{id}/stream` | Stream run events |
+| GET | `/api/artifacts/{id}/download` | Download artifact |
 
 Full API documentation available at http://localhost:8000/docs when backend is running.
 
@@ -151,8 +155,9 @@ DATABASE_URL=postgresql://user:pass@localhost:5432/badgers
 REDIS_URL=redis://localhost:6379/0
 
 # Object Storage
-S3_ENDPOINT=http://localhost:9000
+S3_ENDPOINT=localhost:9000
 S3_BUCKET=badgers-artifacts
+S3_SECURE=false
 
 # Model Providers
 OPENAI_API_KEY=your-key

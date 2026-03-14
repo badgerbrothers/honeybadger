@@ -56,6 +56,39 @@ async def test_create_project():
 
 ## Other Testing Best Practices
 
+## Backend Test Layers
+
+### Contract / Unit
+
+These tests should run without a live PostgreSQL instance.
+
+Use dependency overrides and mocks for:
+- router behaviour
+- request validation
+- response serialization
+- storage / external service interactions
+
+Example command:
+
+```bash
+cd backend
+uv run pytest tests/test_contract_projects.py -v
+```
+
+### Integration
+
+DB-backed API tests are treated as integration tests.
+
+Set `TEST_DATABASE_URL` before running them:
+
+```bash
+set TEST_DATABASE_URL=postgresql://badgers:badgers_dev_password@localhost:5432/badgers
+cd backend
+uv run pytest tests/test_api_projects.py -v
+```
+
+If `TEST_DATABASE_URL` is not set, the current DB-backed `test_api_*` suite is skipped by default.
+
 ### Database Cleanup
 
 Tests should be isolated and not depend on execution order. Use fixtures for database setup/teardown.
