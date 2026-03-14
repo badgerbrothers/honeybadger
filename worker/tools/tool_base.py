@@ -10,6 +10,7 @@ class ToolResult:
     success: bool
     output: str
     error: str | None = None
+    metadata: dict[str, Any] | None = None
 
 
 class Tool(ABC):

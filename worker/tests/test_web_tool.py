@@ -20,15 +20,15 @@ async def test_web_fetch_get_success():
     with patch("httpx.AsyncClient") as mock_client:
         mock_client.return_value.__aenter__.return_value.get.return_value = mock_response
 
-        result = await tool.execute({
-            "url": "https://api.example.com/data",
-            "method": "GET"
-        })
+        result = await tool.execute(
+            url="https://api.example.com/data",
+            method="GET",
+        )
 
-    assert result["success"] is True
-    assert result["status_code"] == 200
-    assert result["json"] == {"result": "success"}
-    assert result["execution_time"] >= 0
+    assert result.success is True
+    assert result.metadata["status_code"] == 200
+    assert result.metadata["json"] == {"result": "success"}
+    assert result.metadata["execution_time"] >= 0
 
 
 @pytest.mark.asyncio
@@ -46,15 +46,15 @@ async def test_web_fetch_post_success():
     with patch("httpx.AsyncClient") as mock_client:
         mock_client.return_value.__aenter__.return_value.post.return_value = mock_response
 
-        result = await tool.execute({
-            "url": "https://api.example.com/create",
-            "method": "POST",
-            "data": {"name": "test"}
-        })
+        result = await tool.execute(
+            url="https://api.example.com/create",
+            method="POST",
+            data={"name": "test"},
+        )
 
-    assert result["success"] is True
-    assert result["status_code"] == 201
-    assert result["json"]["id"] == 123
+    assert result.success is True
+    assert result.metadata["status_code"] == 201
+    assert result.metadata["json"]["id"] == 123
 
 
 @pytest.mark.asyncio
@@ -72,11 +72,11 @@ async def test_web_fetch_non_json_response():
     with patch("httpx.AsyncClient") as mock_client:
         mock_client.return_value.__aenter__.return_value.get.return_value = mock_response
 
-        result = await tool.execute({"url": "https://example.com"})
+        result = await tool.execute(url="https://example.com")
 
-    assert result["success"] is True
-    assert result["json"] is None
-    assert "<html>" in result["body"]
+    assert result.success is True
+    assert result.metadata["json"] is None
+    assert "<html>" in result.metadata["body"]
 
 
 @pytest.mark.asyncio
@@ -94,10 +94,10 @@ async def test_web_fetch_http_error():
     with patch("httpx.AsyncClient") as mock_client:
         mock_client.return_value.__aenter__.return_value.get.return_value = mock_response
 
-        result = await tool.execute({"url": "https://example.com/notfound"})
+        result = await tool.execute(url="https://example.com/notfound")
 
-    assert result["success"] is False
-    assert result["status_code"] == 404
+    assert result.success is False
+    assert result.metadata["status_code"] == 404
 
 
 @pytest.mark.asyncio
@@ -109,7 +109,7 @@ async def test_web_fetch_timeout():
         mock_client.return_value.__aenter__.return_value.get.side_effect = httpx.TimeoutException("Timeout")
 
         with pytest.raises(WebFetchTimeoutError, match="timed out"):
-            await tool.execute({"url": "https://slow.example.com", "timeout": 5})
+            await tool.execute(url="https://slow.example.com", timeout=5)
 
 
 @pytest.mark.asyncio
@@ -118,7 +118,7 @@ async def test_web_fetch_missing_url():
     tool = WebFetchTool()
 
     with pytest.raises(WebFetchError, match="URL is required"):
-        await tool.execute({})
+        await tool.execute()
 
 
 @pytest.mark.asyncio
@@ -127,7 +127,7 @@ async def test_web_fetch_invalid_method():
     tool = WebFetchTool()
 
     with pytest.raises(WebFetchError, match="Unsupported method"):
-        await tool.execute({"url": "https://example.com", "method": "DELETE"})
+        await tool.execute(url="https://example.com", method="DELETE")
 
 
 @pytest.mark.asyncio
@@ -136,4 +136,4 @@ async def test_web_fetch_invalid_timeout():
     tool = WebFetchTool()
 
     with pytest.raises(WebFetchError, match="Invalid timeout"):
-        await tool.execute({"url": "https://example.com", "timeout": 500})
+        await tool.execute(url="https://example.com", timeout=500)

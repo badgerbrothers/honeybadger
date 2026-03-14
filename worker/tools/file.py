@@ -4,6 +4,15 @@ from pathlib import Path
 from tools.tool_base import Tool, ToolResult
 
 
+def _resolve_path(workspace_dir: str, path: str) -> Path:
+    """Resolve a workspace-relative path and prevent escaping the workspace root."""
+    workspace = Path(workspace_dir).resolve()
+    candidate = (workspace / path).resolve()
+    if candidate != workspace and workspace not in candidate.parents:
+        raise ValueError(f"Path escapes workspace: {path}")
+    return candidate
+
+
 class FileListTool(Tool):
     """List files in directory."""
 
@@ -30,7 +39,7 @@ class FileListTool(Tool):
 
     async def execute(self, path: str = ".") -> ToolResult:
         try:
-            full_path = Path(self.workspace_dir) / path
+            full_path = _resolve_path(self.workspace_dir, path)
             if not full_path.exists():
                 return ToolResult(success=False, output="", error=f"Path does not exist: {path}")
             if not full_path.is_dir():
@@ -69,7 +78,7 @@ class FileReadTool(Tool):
 
     async def execute(self, path: str) -> ToolResult:
         try:
-            full_path = Path(self.workspace_dir) / path
+            full_path = _resolve_path(self.workspace_dir, path)
             if not full_path.exists():
                 return ToolResult(success=False, output="", error=f"File does not exist: {path}")
             if not full_path.is_file():
@@ -108,9 +117,22 @@ class FileWriteTool(Tool):
 
     async def execute(self, path: str, content: str) -> ToolResult:
         try:
-            full_path = Path(self.workspace_dir) / path
+            full_path = _resolve_path(self.workspace_dir, path)
             full_path.parent.mkdir(parents=True, exist_ok=True)
             full_path.write_text(content, encoding="utf-8")
-            return ToolResult(success=True, output=f"Successfully wrote {len(content)} bytes to {path}")
+            return ToolResult(
+                success=True,
+                output=f"Successfully wrote {len(content)} bytes to {path}",
+                metadata={
+                    "path": str(full_path),
+                    "artifact": {
+                        "path": str(full_path),
+                        "name": full_path.name,
+                        "artifact_type": "file",
+                        "mime_type": "text/plain",
+                        "size": len(content.encode("utf-8")),
+                    },
+                },
+            )
         except Exception as e:
             return ToolResult(success=False, output="", error=str(e))

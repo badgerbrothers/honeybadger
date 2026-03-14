@@ -21,11 +21,13 @@ class Agent:
         model: ModelProvider,
         tools: list[Tool],
         max_iterations: int = 20,
-        skill: "Skill | None" = None
+        skill: "Skill | None" = None,
+        event_callback=None,
     ):
         self.task_run_id = task_run_id
         self.model = model
         self.skill = skill
+        self.event_callback = event_callback
 
         # Filter tools based on skill's allowed_tools if skill is provided
         if skill:
@@ -39,9 +41,15 @@ class Agent:
         self.messages: list[Message] = []
         self.iteration = 0
 
+    def _emit_event(self, event: dict) -> None:
+        """Emit an execution event to the worker loop if a callback is configured."""
+        if self.event_callback:
+            self.event_callback(event)
+
     async def run(self, goal: str, system_prompt: str | None = None) -> str:
         """Execute agent loop until completion."""
         logger.info("agent_started", task_run_id=str(self.task_run_id), goal=goal)
+        self._emit_event({"type": "step", "message": "agent_started"})
 
         # Use skill's system prompt if skill is provided and no explicit system_prompt
         if self.skill and not system_prompt:
@@ -60,6 +68,13 @@ class Agent:
         while self.iteration < self.max_iterations:
             self.iteration += 1
             logger.info("agent_iteration", task_run_id=str(self.task_run_id), iteration=self.iteration)
+            self._emit_event(
+                {
+                    "type": "step",
+                    "message": f"agent_iteration_{self.iteration}",
+                    "iteration": self.iteration,
+                }
+            )
 
             try:
                 response = await self.model.chat_completion(
@@ -78,7 +93,24 @@ class Agent:
                     ))
 
                     for tool_call in response.tool_calls:
+                        self._emit_event(
+                            {
+                                "type": "tool_call",
+                                "tool_name": tool_call.name,
+                                "arguments": tool_call.arguments,
+                            }
+                        )
                         result = await self._execute_tool(tool_call.name, tool_call.arguments)
+                        self._emit_event(
+                            {
+                                "type": "tool_result",
+                                "tool_name": tool_call.name,
+                                "success": result.success,
+                                "output": result.output,
+                                "error": result.error,
+                                "metadata": result.metadata,
+                            }
+                        )
 
                         self.messages.append(Message(
                             role="user",
@@ -88,6 +120,7 @@ class Agent:
 
                 elif response.finish_reason == "stop":
                     logger.info("agent_completed", task_run_id=str(self.task_run_id), iterations=self.iteration)
+                    self._emit_event({"type": "step", "message": "agent_completed", "iteration": self.iteration})
                     return response.content or ""
 
                 else:

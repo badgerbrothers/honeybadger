@@ -1,62 +1,80 @@
 """Web fetch tool for HTTP requests."""
-from typing import Any, Dict, Optional
 import time
+from typing import Any
 import httpx
 import structlog
-from .base import BaseTool
 from .exceptions import WebFetchError, WebFetchTimeoutError
+from .tool_base import Tool, ToolResult
 
 logger = structlog.get_logger()
 
 
-class WebFetchTool(BaseTool):
+class WebFetchTool(Tool):
     """Fetch data from web URLs via HTTP."""
 
-    async def execute(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    @property
+    def name(self) -> str:
+        return "web_fetch"
+
+    @property
+    def description(self) -> str:
+        return "Fetch a URL over HTTP(S) and return the response body, headers, and status."
+
+    @property
+    def parameters(self) -> dict[str, Any]:
+        return {
+            "type": "object",
+            "properties": {
+                "url": {"type": "string", "description": "URL to fetch."},
+                "method": {"type": "string", "description": "HTTP method. Supports GET or POST.", "default": "GET"},
+                "headers": {"type": "object", "description": "Optional request headers."},
+                "data": {"type": "object", "description": "Optional JSON body for POST requests."},
+                "timeout": {"type": "integer", "description": "Timeout in seconds.", "default": 30},
+            },
+            "required": ["url"],
+        }
+
+    async def execute(self, **kwargs) -> ToolResult:
         """Execute web fetch request.
 
         Args:
-            params: {
-                "url": str - URL to fetch,
-                "method": str (optional) - HTTP method GET/POST (default: GET),
-                "headers": dict (optional) - HTTP headers,
-                "data": dict (optional) - Request body for POST,
-                "timeout": int (optional) - Timeout in seconds (default: 30)
-            }
-
-        Returns:
-            {
-                "success": bool,
-                "status_code": int,
-                "body": str,
-                "json": dict | None,
-                "headers": dict,
-                "execution_time": float
-            }
+            kwargs: URL, method, headers, optional data, optional timeout.
         """
-        self._log_execution(params)
+        logger.info("tool_execution_started", tool=self.name, params=kwargs)
 
-        url = params.get("url")
+        url = kwargs.get("url")
         if not url:
             raise WebFetchError("URL is required")
 
-        method = params.get("method", "GET").upper()
+        method = kwargs.get("method", "GET").upper()
         if method not in ["GET", "POST"]:
             raise WebFetchError(f"Unsupported method: {method}. Only GET and POST are supported")
 
-        timeout = params.get("timeout", 30)
+        timeout = kwargs.get("timeout", 30)
         if timeout <= 0 or timeout > 300:
             raise WebFetchError(f"Invalid timeout: {timeout}. Must be between 1 and 300 seconds")
 
-        headers = params.get("headers", {})
-        data = params.get("data")
+        headers = kwargs.get("headers", {})
+        data = kwargs.get("data")
 
         result = await self.fetch(url, method, headers, data, timeout)
-        self._log_result(result)
-        return result
+        logger.info("tool_execution_completed", tool=self.name, result=result)
+        output = result["body"][:4000] if result["body"] else f"HTTP {result['status_code']}"
+        return ToolResult(
+            success=result["success"],
+            output=output,
+            error=None if result["success"] else f"Request failed with status {result['status_code']}",
+            metadata=result,
+        )
 
-    async def fetch(self, url: str, method: str, headers: Dict[str, str],
-                   data: Optional[Dict[str, Any]], timeout: int) -> Dict[str, Any]:
+    async def fetch(
+        self,
+        url: str,
+        method: str,
+        headers: dict[str, str],
+        data: dict[str, Any] | None,
+        timeout: int,
+    ) -> dict[str, Any]:
         """Perform HTTP request."""
         start_time = time.time()
 

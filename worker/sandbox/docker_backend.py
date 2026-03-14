@@ -1,4 +1,5 @@
 """Docker SDK wrapper for container operations."""
+from pathlib import Path
 import docker
 from docker.errors import DockerException, NotFound
 from .exceptions import SandboxCreationError, SandboxExecutionError, SandboxCleanupError
@@ -14,15 +15,29 @@ class DockerBackend:
         except DockerException as e:
             raise SandboxCreationError(f"Failed to initialize Docker client: {e}")
 
-    def create_container(self, image: str, mem_limit: str = "512m", cpu_quota: int = 50000) -> str:
+    def create_container(
+        self,
+        image: str,
+        mem_limit: str = "512m",
+        cpu_quota: int = 50000,
+        workspace_dir: str | None = None,
+    ) -> str:
         """Create container with resource limits."""
         try:
+            volumes = None
+            if workspace_dir:
+                Path(workspace_dir).mkdir(parents=True, exist_ok=True)
+                volumes = {
+                    str(Path(workspace_dir)): {"bind": "/workspace", "mode": "rw"},
+                }
             container = self.client.containers.create(
                 image=image,
                 detach=True,
                 mem_limit=mem_limit,
                 cpu_quota=cpu_quota,
-                network_mode="bridge"
+                network_mode="bridge",
+                volumes=volumes,
+                working_dir="/workspace",
             )
             return container.id
         except DockerException as e:

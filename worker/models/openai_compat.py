@@ -1,8 +1,8 @@
 """OpenAI-compatible model provider with tool calling."""
-import openai
 import json
+import openai
 from models.tool_calling import ModelProvider, Message, ModelResponse, ToolCall
-from orchestrator.exceptions import ModelError
+from models.exceptions import ModelError
 
 
 class OpenAIProvider(ModelProvider):
@@ -21,7 +21,12 @@ class OpenAIProvider(ModelProvider):
     ) -> ModelResponse:
         try:
             openai_messages = [{"role": msg.role, "content": msg.content} for msg in messages]
-            kwargs = {"model": self.model, "messages": openai_messages, "temperature": temperature, "max_tokens": max_tokens}
+            kwargs = {
+                "model": self.model,
+                "messages": openai_messages,
+                "temperature": temperature,
+                "max_tokens": max_tokens,
+            }
             if tools:
                 kwargs["tools"] = tools
                 kwargs["tool_choice"] = "auto"

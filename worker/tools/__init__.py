@@ -1,10 +1,19 @@
 """Tool implementations."""
 from .browser import BrowserTool
+from .file import FileListTool, FileReadTool, FileWriteTool
 from .python import PythonTool
-from .web import WebFetchTool
 from .tool_base import Tool
+from .web import WebFetchTool
 
-__all__ = ["BrowserTool", "PythonTool", "WebFetchTool", "get_all_tools"]
+__all__ = [
+    "BrowserTool",
+    "FileListTool",
+    "FileReadTool",
+    "FileWriteTool",
+    "PythonTool",
+    "WebFetchTool",
+    "get_all_tools",
+]
 
 
 def get_all_tools(sandbox_manager=None) -> list[Tool]:
@@ -16,9 +25,13 @@ def get_all_tools(sandbox_manager=None) -> list[Tool]:
     Returns:
         List of tool instances
     """
+    workspace_dir = getattr(sandbox_manager, "workspace_dir", "/workspace")
     tools = [
-        BrowserTool(),
+        BrowserTool(workspace_dir=workspace_dir),
         WebFetchTool(),
+        FileListTool(workspace_dir=workspace_dir),
+        FileReadTool(workspace_dir=workspace_dir),
+        FileWriteTool(workspace_dir=workspace_dir),
     ]
 
     if sandbox_manager:

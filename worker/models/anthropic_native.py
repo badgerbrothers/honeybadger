@@ -1,14 +1,17 @@
 """Anthropic native model provider with tool calling."""
-import anthropic
+try:
+    import anthropic
+except ModuleNotFoundError:  # pragma: no cover - optional dependency in local/dev envs
+    anthropic = None
 from models.tool_calling import ModelProvider, Message, ModelResponse, ToolCall
-from orchestrator.exceptions import ModelError
+from models.exceptions import ModelError
 
 
 class AnthropicProvider(ModelProvider):
     """Anthropic native SDK provider."""
 
     def __init__(self, api_key: str, model: str = "claude-3-5-sonnet-20241022"):
-        self.client = anthropic.AsyncAnthropic(api_key=api_key)
+        self.client = anthropic.AsyncAnthropic(api_key=api_key) if anthropic else None
         self.model = model
 
     async def chat_completion(
@@ -19,9 +22,16 @@ class AnthropicProvider(ModelProvider):
         max_tokens: int = 4096
     ) -> ModelResponse:
         try:
+            if self.client is None:
+                raise ModelError("Anthropic SDK not installed. Add `anthropic` to dependencies.")
             anthropic_messages = [{"role": msg.role, "content": msg.content} for msg in messages if msg.role != "system"]
             system = next((msg.content for msg in messages if msg.role == "system"), None)
-            kwargs = {"model": self.model, "messages": anthropic_messages, "temperature": temperature, "max_tokens": max_tokens}
+            kwargs = {
+                "model": self.model,
+                "messages": anthropic_messages,
+                "temperature": temperature,
+                "max_tokens": max_tokens,
+            }
             if system:
                 kwargs["system"] = system
             if tools:

@@ -1,30 +1,82 @@
 """Browser automation tools using Playwright."""
-from typing import Any, Dict, Optional
-from playwright.async_api import async_playwright, Browser, BrowserContext, Page, TimeoutError as PlaywrightTimeoutError
+from pathlib import Path
+from typing import Any
+from typing import TYPE_CHECKING
+try:
+    from playwright.async_api import async_playwright, TimeoutError as PlaywrightTimeoutError
+except ModuleNotFoundError:  # pragma: no cover - optional dependency in local/dev envs
+    async_playwright = None
+    PlaywrightTimeoutError = TimeoutError
+
+if TYPE_CHECKING:
+    from playwright.async_api import Browser, BrowserContext, Page
+else:
+    Browser = Any
+    BrowserContext = Any
+    Page = Any
 import structlog
-from .base import BaseTool
 from .exceptions import BrowserToolError, BrowserTimeoutError, BrowserSelectorError, BrowserNavigationError
+from .tool_base import Tool, ToolResult
 
 logger = structlog.get_logger()
 
 
-class BrowserTool(BaseTool):
+class BrowserTool(Tool):
     """Browser automation using Playwright."""
 
-    def __init__(self):
+    def __init__(self, workspace_dir: str = "/workspace"):
         """Initialize browser tool."""
-        super().__init__()
-        self.browser: Optional[Browser] = None
-        self.context: Optional[BrowserContext] = None
-        self.page: Optional[Page] = None
+        self.browser: Browser | None = None
+        self.context: BrowserContext | None = None
+        self.page: Page | None = None
         self.playwright = None
+        self.workspace_dir = workspace_dir
 
-    async def __aenter__(self):
-        """Start browser on context entry."""
+    @property
+    def name(self) -> str:
+        return "browser"
+
+    @property
+    def description(self) -> str:
+        return "Control a browser to open pages, click elements, type text, extract content, and capture screenshots."
+
+    @property
+    def parameters(self) -> dict[str, Any]:
+        return {
+            "type": "object",
+            "properties": {
+                "operation": {
+                    "type": "string",
+                    "enum": ["open", "click", "type", "extract", "screenshot"],
+                    "description": "Browser operation to perform.",
+                },
+                "url": {"type": "string"},
+                "selector": {"type": "string"},
+                "text": {"type": "string"},
+                "wait_for": {"type": "string"},
+                "wait_for_navigation": {"type": "boolean"},
+                "clear": {"type": "boolean"},
+                "format": {"type": "string"},
+                "full_page": {"type": "boolean"},
+                "path": {"type": "string"},
+            },
+            "required": ["operation"],
+        }
+
+    async def _ensure_browser(self) -> None:
+        """Lazy-start the browser for the current tool instance."""
+        if self.page is not None:
+            return
+        if async_playwright is None:
+            raise BrowserToolError("Playwright is not installed. Add `playwright` to dependencies.")
         self.playwright = await async_playwright().start()
         self.browser = await self.playwright.chromium.launch(headless=True)
         self.context = await self.browser.new_context()
         self.page = await self.context.new_page()
+
+    async def __aenter__(self):
+        """Start browser on context entry."""
+        await self._ensure_browser()
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
@@ -39,35 +91,41 @@ class BrowserTool(BaseTool):
             await self.playwright.stop()
         return False
 
-    async def execute(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def execute(self, **kwargs) -> ToolResult:
         """Execute browser tool operation.
 
         Args:
-            params: Must include 'operation' key with value: open, click, type, extract, screenshot
-
-        Returns:
-            Operation-specific result dictionary
+            kwargs: Must include operation key with value open/click/type/extract/screenshot.
         """
-        self._log_execution(params)
-        operation = params.get("operation")
+        logger.info("tool_execution_started", tool=self.name, params=kwargs)
+        await self._ensure_browser()
+        operation = kwargs.get("operation")
 
         if operation == "open":
-            result = await self.open(params)
+            result = await self.open(kwargs)
         elif operation == "click":
-            result = await self.click(params)
+            result = await self.click(kwargs)
         elif operation == "type":
-            result = await self.type_text(params)
+            result = await self.type_text(kwargs)
         elif operation == "extract":
-            result = await self.extract(params)
+            result = await self.extract(kwargs)
         elif operation == "screenshot":
-            result = await self.screenshot(params)
+            result = await self.screenshot(kwargs)
         else:
             raise BrowserToolError(f"Unknown operation: {operation}")
 
-        self._log_result(result)
-        return result
+        logger.info("tool_execution_completed", tool=self.name, result=result)
+        if operation == "extract":
+            output = str(result.get("content", ""))[:4000]
+        elif operation == "screenshot":
+            output = f"Screenshot saved to {result['path']}"
+        else:
+            output = result.get("title") or result.get("element_text") or "Browser operation completed."
 
-    async def open(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        error = None if result.get("success", False) else "Browser operation failed"
+        return ToolResult(success=result.get("success", False), output=output, error=error, metadata=result)
+
+    async def open(self, params: dict[str, Any]) -> dict[str, Any]:
         """Open URL in browser.
 
         Args:
@@ -105,7 +163,7 @@ class BrowserTool(BaseTool):
         except Exception as e:
             raise BrowserNavigationError(f"Failed to open URL: {url}") from e
 
-    async def click(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def click(self, params: dict[str, Any]) -> dict[str, Any]:
         """Click element by selector.
 
         Args:
@@ -146,7 +204,7 @@ class BrowserTool(BaseTool):
         except Exception as e:
             raise BrowserSelectorError(f"Failed to click selector: {selector}") from e
 
-    async def type_text(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def type_text(self, params: dict[str, Any]) -> dict[str, Any]:
         """Type text into input field.
 
         Args:
@@ -184,7 +242,7 @@ class BrowserTool(BaseTool):
         except Exception as e:
             raise BrowserSelectorError(f"Failed to type into selector: {selector}") from e
 
-    async def extract(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def extract(self, params: dict[str, Any]) -> dict[str, Any]:
         """Extract structured data from page.
 
         Args:
@@ -226,7 +284,7 @@ class BrowserTool(BaseTool):
         except Exception as e:
             raise BrowserToolError("Failed to extract content") from e
 
-    async def screenshot(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def screenshot(self, params: dict[str, Any]) -> dict[str, Any]:
         """Capture page screenshot.
 
         Args:
@@ -245,7 +303,11 @@ class BrowserTool(BaseTool):
         """
         full_page = params.get("full_page", True)
         format_type = params.get("format", "png")
-        path = params.get("path", "/workspace/screenshot.png")
+        path = params.get("path")
+        if not path:
+            filename = f"screenshot.{format_type}"
+            path = str(Path(self.workspace_dir) / filename)
+        Path(path).parent.mkdir(parents=True, exist_ok=True)
 
         try:
             screenshot_bytes = await self.page.screenshot(
@@ -257,8 +319,14 @@ class BrowserTool(BaseTool):
             return {
                 "success": True,
                 "path": path,
-                "size": len(screenshot_bytes)
+                "size": len(screenshot_bytes),
+                "artifact": {
+                    "path": path,
+                    "name": Path(path).name,
+                    "artifact_type": "screenshot",
+                    "mime_type": f"image/{format_type}",
+                    "size": len(screenshot_bytes),
+                },
             }
         except Exception as e:
             raise BrowserToolError("Failed to capture screenshot") from e
-
