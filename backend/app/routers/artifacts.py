@@ -1,5 +1,7 @@
 """Artifact API endpoints."""
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from pathlib import PurePosixPath
+
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -8,6 +10,7 @@ import io
 from urllib.parse import quote
 from app.database import get_db
 from app.models.artifact import Artifact, ArtifactType
+from app.models.project import ProjectNode, NodeType
 from app.schemas.artifact import ArtifactResponse
 from app.services.storage import storage_service
 
@@ -31,6 +34,7 @@ async def get_artifact(artifact_id: uuid.UUID, db: AsyncSession = Depends(get_db
 async def upload_artifact(
     project_id: uuid.UUID,
     task_run_id: uuid.UUID,
+    artifact_type: ArtifactType = Query(default=ArtifactType.FILE),
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db)
 ):
@@ -49,7 +53,7 @@ async def upload_artifact(
         project_id=project_id,
         task_run_id=task_run_id,
         name=file.filename,
-        artifact_type=ArtifactType.FILE,
+        artifact_type=artifact_type,
         storage_path=object_name,
         size=len(content),
         mime_type=file.content_type
@@ -76,6 +80,24 @@ async def download_artifact(artifact_id: uuid.UUID, db: AsyncSession = Depends(g
     )
 
 
+@router.get("/list/project/{project_id}", response_model=list[ArtifactResponse])
+async def list_project_artifacts(project_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
+    """List artifacts for a project."""
+    result = await db.execute(
+        select(Artifact).where(Artifact.project_id == project_id).order_by(Artifact.created_at.desc())
+    )
+    return result.scalars().all()
+
+
+@router.get("/list/run/{run_id}", response_model=list[ArtifactResponse])
+async def list_run_artifacts(run_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
+    """List artifacts produced by a run."""
+    result = await db.execute(
+        select(Artifact).where(Artifact.task_run_id == run_id).order_by(Artifact.created_at.desc())
+    )
+    return result.scalars().all()
+
+
 @router.delete("/{artifact_id}", status_code=204)
 async def delete_artifact(artifact_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
     """Delete artifact."""
@@ -91,3 +113,37 @@ async def delete_artifact(artifact_id: uuid.UUID, db: AsyncSession = Depends(get
 
     # Then delete from storage (if this fails, record is already gone)
     await storage_service.delete_file(storage_path)
+
+
+@router.post("/{artifact_id}/save-to-project")
+async def save_artifact_to_project(artifact_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
+    """Persist an artifact as a project file node."""
+    result = await db.execute(select(Artifact).where(Artifact.id == artifact_id))
+    artifact = result.scalar_one_or_none()
+    if not artifact:
+        raise HTTPException(status_code=404, detail="Artifact not found")
+
+    node_id = uuid.uuid4()
+    source_name = PurePosixPath(artifact.storage_path).name
+    target_object_name = f"projects/{artifact.project_id}/saved-artifacts/{node_id}/{source_name}"
+    await storage_service.copy_file(artifact.storage_path, target_object_name)
+
+    node = ProjectNode(
+        id=node_id,
+        project_id=artifact.project_id,
+        name=artifact.name,
+        path=target_object_name,
+        node_type=NodeType.FILE,
+        size=artifact.size,
+    )
+    db.add(node)
+    await db.commit()
+    await db.refresh(node)
+
+    return {
+        "id": str(node.id),
+        "project_id": str(node.project_id),
+        "name": node.name,
+        "path": node.path,
+        "size": node.size,
+    }

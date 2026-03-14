@@ -1,7 +1,17 @@
 export type TaskStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
 
 export interface TaskRunEvent {
-  type: 'status_change' | 'tool_call' | 'tool_result' | 'step' | 'error';
+  type:
+    | 'status_change'
+    | 'run_started'
+    | 'run_completed'
+    | 'run_failed'
+    | 'run_cancelled'
+    | 'tool_call'
+    | 'tool_result'
+    | 'step'
+    | 'artifact_created'
+    | 'error';
   timestamp?: string;
   data?: any;
 }
@@ -29,6 +39,13 @@ export interface StepEvent extends TaskRunEvent {
   type: 'step';
   message: string;
   iteration?: number;
+}
+
+export interface ArtifactCreatedEvent extends TaskRunEvent {
+  type: 'artifact_created';
+  artifact_id?: string;
+  name?: string;
+  artifact_type?: string;
 }
 
 export interface ErrorEvent extends TaskRunEvent {

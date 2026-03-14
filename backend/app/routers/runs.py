@@ -1,11 +1,11 @@
 """Run API endpoints."""
-from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 import uuid
 from datetime import datetime, UTC
 from app.database import get_db
-from app.models.task import TaskRun, TaskStatus
+from app.models.task import Task, TaskRun, TaskStatus
 from app.schemas.task import TaskRunResponse
 from app.services.event_broadcaster import broadcaster
 
@@ -31,10 +31,34 @@ async def cancel_run(run_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=400, detail=f"Cannot cancel run with status {run.status.value}")
     run.status = TaskStatus.CANCELLED
     run.completed_at = datetime.now(UTC).replace(tzinfo=None)  # Remove tzinfo for TIMESTAMP WITHOUT TIME ZONE
+    task_result = await db.execute(select(Task).where(Task.id == run.task_id))
+    task = task_result.scalar_one_or_none()
+    if task and task.current_run_id == run.id:
+        task.current_run_id = None
     await db.commit()
     await db.refresh(run)
     await broadcaster.broadcast(str(run_id), {"type": "status_change", "status": "cancelled"})
     return run
+
+
+@router.post("/{run_id}/events", status_code=status.HTTP_202_ACCEPTED)
+async def ingest_run_event(
+    run_id: uuid.UUID,
+    event: dict,
+    db: AsyncSession = Depends(get_db),
+):
+    """Accept execution events from the worker and fan them out to subscribers."""
+    result = await db.execute(select(TaskRun).where(TaskRun.id == run_id))
+    run = result.scalar_one_or_none()
+    if not run:
+        raise HTTPException(status_code=404, detail="Run not found")
+
+    logs = list(run.logs or [])
+    logs.append(event)
+    run.logs = logs
+    await db.commit()
+    await broadcaster.broadcast(str(run_id), event)
+    return {"accepted": True}
 
 
 @router.websocket("/{run_id}/stream")

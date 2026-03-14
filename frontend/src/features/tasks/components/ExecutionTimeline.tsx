@@ -1,6 +1,6 @@
 'use client';
 
-import { TaskRunEvent, ToolCallEvent, ToolResultEvent, StepEvent } from '../types';
+import { ArtifactCreatedEvent, TaskRunEvent, ToolCallEvent, ToolResultEvent, StepEvent } from '../types';
 import { ToolCallItem } from './ToolCallItem';
 
 interface ExecutionTimelineProps {
@@ -11,6 +11,7 @@ export function ExecutionTimeline({ events }: ExecutionTimelineProps) {
   const toolCalls = events.filter((e): e is ToolCallEvent => e.type === 'tool_call');
   const toolResults = events.filter((e): e is ToolResultEvent => e.type === 'tool_result');
   const steps = events.filter((e): e is StepEvent => e.type === 'step');
+  const artifacts = events.filter((e): e is ArtifactCreatedEvent => e.type === 'artifact_created');
 
   return (
     <div className="space-y-4">
@@ -36,6 +37,19 @@ export function ExecutionTimeline({ events }: ExecutionTimelineProps) {
               const result = toolResults.find(r => r.tool_name === call.tool_name);
               return <ToolCallItem key={idx} toolCall={call} result={result} />;
             })}
+          </div>
+        </div>
+      )}
+
+      {artifacts.length > 0 && (
+        <div>
+          <h3 className="text-sm font-semibold text-gray-700 mb-2">Artifacts</h3>
+          <div className="space-y-2">
+            {artifacts.map((artifact, idx) => (
+              <div key={idx} className="rounded-lg border border-gray-200 p-3 text-sm text-gray-700">
+                {artifact.name || 'Artifact created'}
+              </div>
+            ))}
           </div>
         </div>
       )}

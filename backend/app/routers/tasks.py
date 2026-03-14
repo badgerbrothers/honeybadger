@@ -61,16 +61,27 @@ async def list_task_runs(task_id: uuid.UUID, db: AsyncSession = Depends(get_db))
     result = await db.execute(select(Task).where(Task.id == task_id))
     if not result.scalar_one_or_none():
         raise HTTPException(status_code=404, detail="Task not found")
-    result = await db.execute(select(TaskRun).where(TaskRun.task_id == task_id))
+    result = await db.execute(
+        select(TaskRun).where(TaskRun.task_id == task_id).order_by(TaskRun.created_at.desc())
+    )
     return result.scalars().all()
 
 @router.post("/{task_id}/runs", response_model=TaskRunResponse, status_code=201)
 async def create_task_run(task_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Task).where(Task.id == task_id))
-    if not result.scalar_one_or_none():
+    task = result.scalar_one_or_none()
+    if not task:
         raise HTTPException(status_code=404, detail="Task not found")
     db_run = TaskRun(task_id=task_id, status=TaskStatus.PENDING)
     db.add(db_run)
+    await db.flush()
+    task.current_run_id = db_run.id
     await db.commit()
     await db.refresh(db_run)
     return db_run
+
+
+@router.post("/{task_id}/retry", response_model=TaskRunResponse, status_code=201)
+async def retry_task(task_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
+    """Create a new run for an existing task."""
+    return await create_task_run(task_id=task_id, db=db)

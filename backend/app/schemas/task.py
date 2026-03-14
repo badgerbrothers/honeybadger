@@ -40,5 +40,7 @@ class TaskRunResponse(BaseModel):
     started_at: datetime | None
     completed_at: datetime | None
     error_message: str | None
+    logs: list[dict] | None = None
+    working_memory: dict | None = None
     created_at: datetime
     updated_at: datetime
