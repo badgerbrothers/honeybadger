@@ -6,6 +6,7 @@ from .task import Task, TaskRun, TaskStatus
 from .sandbox import SandboxSession
 from .artifact import Artifact, ArtifactType
 from .document_chunk import DocumentChunk
+from .document_index_job import DocumentIndexJob, DocumentIndexStatus
 
 __all__ = [
     "Base",
@@ -23,4 +24,6 @@ __all__ = [
     "Artifact",
     "ArtifactType",
     "DocumentChunk",
+    "DocumentIndexJob",
+    "DocumentIndexStatus",
 ]

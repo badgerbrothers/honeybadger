@@ -100,6 +100,13 @@
 
 ---
 
-**总计：** 约 120-150 小时（Phase 1: 25-32h, Phase 2: 23-30h, Phase 3: 18-24h, Phase 4: 20-26h）
+## Phase 5: Worker Integration & System Completion（第 9-10 周）
+
+### Plan 5.1: Worker 主循环实现
+创建 worker/main.py 入口文件，实现完整的任务执行流程：从 Redis 队列获取任务 → 创建沙箱 → 初始化 Agent → 执行任务 → 保存结果 → 清理沙箱。集成数据库操作（SandboxSession）和 WebSocket 事件广播。**5-6h**
+
+---
+
+**总计：** 约 125-156 小时（Phase 1: 25-32h, Phase 2: 23-30h, Phase 3: 18-24h, Phase 4: 20-26h, Phase 5: 5-6h）
 
 **使用方法：** 按顺序执行每个 plan，使用 `/core_piv_loop:plan-feature` 创建详细计划，使用 `/core_piv_loop:execute` 执行。

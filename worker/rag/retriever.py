@@ -1,5 +1,5 @@
 """Similarity search and context retrieval."""
-from typing import List, Dict
+from typing import Dict, List
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from .embeddings import EmbeddingService
@@ -52,7 +52,7 @@ class DocumentRetriever:
         threshold: float
     ) -> List[Dict]:
         """Search for similar chunks using cosine similarity."""
-        from app.models.document_chunk import DocumentChunk
+        from backend.app.models.document_chunk import DocumentChunk
 
         # pgvector cosine distance: 1 - cosine_similarity
         # So similarity = 1 - distance

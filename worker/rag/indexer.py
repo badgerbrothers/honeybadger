@@ -1,7 +1,8 @@
 """Document indexing pipeline."""
 from pathlib import Path
-from typing import List, Dict
+from typing import Dict, List
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import delete
 from .embeddings import EmbeddingService
 from .chunker import chunk_text
 from .parsers import TxtParser, MarkdownParser, PdfParser
@@ -21,7 +22,7 @@ class DocumentIndexer:
         }
 
     async def index_document(
-        self, project_id: str, file_path: str, content: str = None
+        self, project_id, file_path: str
     ) -> int:
         """Index a document into vector database.
 
@@ -30,7 +31,7 @@ class DocumentIndexer:
         """
         try:
             # Parse document
-            text = await self._parse_document(file_path, content)
+            text = await self._parse_document(file_path)
 
             # Chunk document
             chunks = await self._chunk_document(text)
@@ -46,7 +47,7 @@ class DocumentIndexer:
             await self.db_session.rollback()
             raise
 
-    async def _parse_document(self, file_path: str, content: str = None) -> str:
+    async def _parse_document(self, file_path: str) -> str:
         """Parse document to extract text."""
         ext = Path(file_path).suffix.lower()
         parser = self.parsers.get(ext)
@@ -54,13 +55,8 @@ class DocumentIndexer:
         if not parser:
             raise ValueError(f"Unsupported file type: {ext}")
 
-        if content:
-            # Parse from content string
-            result = parser.parse(Path(file_path))
-            return result["text"]
-        else:
-            result = parser.parse(Path(file_path))
-            return result["text"]
+        result = parser.parse(Path(file_path))
+        return result["text"]
 
     async def _chunk_document(self, text: str) -> List[Dict]:
         """Chunk document text."""
@@ -89,7 +85,14 @@ class DocumentIndexer:
         self, project_id: str, file_path: str, chunks: List[Dict]
     ) -> None:
         """Store chunks in database."""
-        from app.models.document_chunk import DocumentChunk
+        from backend.app.models.document_chunk import DocumentChunk
+
+        await self.db_session.execute(
+            delete(DocumentChunk).where(
+                DocumentChunk.project_id == project_id,
+                DocumentChunk.file_path == file_path,
+            )
+        )
 
         for chunk in chunks:
             db_chunk = DocumentChunk(

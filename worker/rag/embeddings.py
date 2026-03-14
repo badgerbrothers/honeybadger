@@ -1,5 +1,5 @@
 """Embedding generation service using OpenAI API."""
-from openai import AsyncOpenAI, RateLimitError, APIError
+from openai import AsyncOpenAI, RateLimitError, APIError, APITimeoutError
 from typing import List
 import asyncio
 
@@ -33,7 +33,13 @@ class EmbeddingService:
                 else:
                     raise
             except APIError as e:
-                if attempt < 2 and e.status_code >= 500:
+                status_code = getattr(e, "status_code", None)
+                if attempt < 2 and (status_code is None or status_code >= 500):
+                    await asyncio.sleep(2 ** attempt)
+                else:
+                    raise
+            except APITimeoutError:
+                if attempt < 2:
                     await asyncio.sleep(2 ** attempt)
                 else:
                     raise

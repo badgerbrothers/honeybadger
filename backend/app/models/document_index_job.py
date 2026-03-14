@@ -1,0 +1,44 @@
+"""Document indexing job model."""
+from __future__ import annotations
+
+import enum
+import uuid
+from datetime import datetime
+
+from sqlalchemy import Enum as SQLEnum, ForeignKey, Integer, String, Text
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from .base import Base, TimestampMixin
+
+
+class DocumentIndexStatus(enum.Enum):
+    """Indexing lifecycle for project file ingestion."""
+
+    PENDING = "pending"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+
+class DocumentIndexJob(Base, TimestampMixin):
+    """Represents a file that should be parsed and indexed into document chunks."""
+
+    __tablename__ = "document_index_jobs"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    project_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
+    project_node_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("project_nodes.id", ondelete="CASCADE"), nullable=False)
+    storage_path: Mapped[str] = mapped_column(String(1024), nullable=False)
+    file_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    status: Mapped[DocumentIndexStatus] = mapped_column(
+        SQLEnum(DocumentIndexStatus),
+        nullable=False,
+        default=DocumentIndexStatus.PENDING,
+    )
+    started_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    chunk_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    project = relationship("Project")
+    project_node = relationship("ProjectNode")
