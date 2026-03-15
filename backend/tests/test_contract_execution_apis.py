@@ -122,9 +122,17 @@ async def test_contract_list_artifacts_endpoints(unit_app_client):
     assert by_project.status_code == 200
     assert by_project.json()[0]["project_id"] == str(project_id)
 
+    by_project_alias = await unit_app_client.get(f"/api/projects/{project_id}/artifacts")
+    assert by_project_alias.status_code == 200
+    assert by_project_alias.json()[0]["project_id"] == str(project_id)
+
     by_run = await unit_app_client.get(f"/api/artifacts/list/run/{run_id}")
     assert by_run.status_code == 200
     assert by_run.json()[0]["task_run_id"] == str(run_id)
+
+    by_run_alias = await unit_app_client.get(f"/api/runs/{run_id}/artifacts")
+    assert by_run_alias.status_code == 200
+    assert by_run_alias.json()[0]["task_run_id"] == str(run_id)
 
 
 @pytest.mark.asyncio
@@ -178,4 +186,3 @@ async def test_contract_rag_index_and_search(unit_app_client):
     assert search_response.status_code == 200
     assert search_response.json()["chunks"] == chunks
     mock_search.assert_awaited_once()
-

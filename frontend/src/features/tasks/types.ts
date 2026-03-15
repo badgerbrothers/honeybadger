@@ -1,19 +1,21 @@
 export type TaskStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
 
+export type TaskRunEventType =
+  | 'status_change'
+  | 'run_started'
+  | 'run_completed'
+  | 'run_failed'
+  | 'run_cancelled'
+  | 'tool_call'
+  | 'tool_result'
+  | 'step'
+  | 'artifact_created'
+  | 'error';
+
 export interface TaskRunEvent {
-  type:
-    | 'status_change'
-    | 'run_started'
-    | 'run_completed'
-    | 'run_failed'
-    | 'run_cancelled'
-    | 'tool_call'
-    | 'tool_result'
-    | 'step'
-    | 'artifact_created'
-    | 'error';
+  type: TaskRunEventType;
   timestamp?: string;
-  data?: any;
+  [key: string]: unknown;
 }
 
 export interface StatusChangeEvent extends TaskRunEvent {
@@ -21,23 +23,45 @@ export interface StatusChangeEvent extends TaskRunEvent {
   status: TaskStatus;
 }
 
+export interface RunStartedEvent extends TaskRunEvent {
+  type: 'run_started';
+  status?: TaskStatus;
+}
+
+export interface RunCompletedEvent extends TaskRunEvent {
+  type: 'run_completed';
+  result?: string;
+}
+
+export interface RunFailedEvent extends TaskRunEvent {
+  type: 'run_failed';
+  error?: string;
+}
+
+export interface RunCancelledEvent extends TaskRunEvent {
+  type: 'run_cancelled';
+}
+
 export interface ToolCallEvent extends TaskRunEvent {
   type: 'tool_call';
-  tool_name: string;
-  arguments: Record<string, any>;
+  tool_name?: string;
+  tool?: string;
+  arguments?: Record<string, unknown>;
 }
 
 export interface ToolResultEvent extends TaskRunEvent {
   type: 'tool_result';
-  tool_name: string;
-  success: boolean;
+  tool_name?: string;
+  tool?: string;
+  success?: boolean;
   output?: string;
   error?: string;
+  metadata?: Record<string, unknown>;
 }
 
 export interface StepEvent extends TaskRunEvent {
   type: 'step';
-  message: string;
+  message?: string;
   iteration?: number;
 }
 

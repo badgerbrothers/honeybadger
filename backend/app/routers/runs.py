@@ -5,7 +5,9 @@ from sqlalchemy import select
 import uuid
 from datetime import datetime, UTC
 from app.database import get_db
+from app.models.artifact import Artifact
 from app.models.task import Task, TaskRun, TaskStatus
+from app.schemas.artifact import ArtifactResponse
 from app.schemas.task import TaskRunResponse
 from app.services.event_broadcaster import broadcaster
 
@@ -59,6 +61,15 @@ async def ingest_run_event(
     await db.commit()
     await broadcaster.broadcast(str(run_id), event)
     return {"accepted": True}
+
+
+@router.get("/{run_id}/artifacts", response_model=list[ArtifactResponse])
+async def list_run_artifacts(run_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
+    """List artifacts produced by a run."""
+    result = await db.execute(
+        select(Artifact).where(Artifact.task_run_id == run_id).order_by(Artifact.created_at.desc())
+    )
+    return result.scalars().all()
 
 
 @router.websocket("/{run_id}/stream")

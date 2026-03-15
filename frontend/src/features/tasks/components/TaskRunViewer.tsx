@@ -5,21 +5,34 @@ import { Card } from '@/components/ui/Card';
 import { useTaskRunStream } from '../hooks/useTaskRunStream';
 import { TaskStatusBadge } from './TaskStatusBadge';
 import { ExecutionTimeline } from './ExecutionTimeline';
-import { TaskStatus, StatusChangeEvent } from '../types';
+import { TaskRunEvent, TaskStatus, StatusChangeEvent } from '../types';
 
 interface TaskRunViewerProps {
   runId: string | null;
   initialStatus?: TaskStatus;
+  initialEvents?: TaskRunEvent[];
 }
 
-export function TaskRunViewer({ runId, initialStatus = 'pending' }: TaskRunViewerProps) {
-  const { events, isConnected, error } = useTaskRunStream(runId);
+export function TaskRunViewer({
+  runId,
+  initialStatus = 'pending',
+  initialEvents = [],
+}: TaskRunViewerProps) {
+  const { events, isConnected, error } = useTaskRunStream(runId, initialEvents);
 
   const currentStatus = useMemo(() => {
     const statusEvents = events.filter((e): e is StatusChangeEvent => e.type === 'status_change');
-    if (statusEvents.length === 0) return initialStatus;
-    const lastStatus = statusEvents[statusEvents.length - 1];
-    return lastStatus.status || initialStatus;
+    if (statusEvents.length > 0) {
+      const lastStatus = statusEvents[statusEvents.length - 1];
+      return lastStatus.status || initialStatus;
+    }
+
+    const lastEvent = events[events.length - 1];
+    if (lastEvent?.type === 'run_completed') return 'completed';
+    if (lastEvent?.type === 'run_failed') return 'failed';
+    if (lastEvent?.type === 'run_cancelled') return 'cancelled';
+    if (lastEvent?.type === 'run_started') return 'running';
+    return initialStatus;
   }, [events, initialStatus]);
 
   if (!runId) {

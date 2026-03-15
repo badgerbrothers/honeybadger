@@ -6,8 +6,10 @@ import uuid
 import structlog
 from pathlib import Path
 from app.database import get_db
+from app.models.artifact import Artifact
 from app.models.project import Project, ProjectNode, NodeType
 from app.schemas.project import ProjectCreate, ProjectUpdate, ProjectResponse, ProjectNodeResponse, ProjectFileUploadResponse
+from app.schemas.artifact import ArtifactResponse
 from app.services.rag_service import rag_service
 from app.services.storage import storage_service
 
@@ -169,3 +171,12 @@ async def delete_project_file(
         await storage_service.delete_file(storage_path)
     except Exception as e:
         logger.warning(f"Failed to delete file from storage: {e}", path=storage_path)
+
+
+@router.get("/{project_id}/artifacts", response_model=list[ArtifactResponse])
+async def list_project_artifacts(project_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
+    """List artifacts for a project."""
+    result = await db.execute(
+        select(Artifact).where(Artifact.project_id == project_id).order_by(Artifact.created_at.desc())
+    )
+    return result.scalars().all()
