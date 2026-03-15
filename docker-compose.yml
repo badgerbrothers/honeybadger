@@ -1,17 +1,19 @@
-# Development environment only - DO NOT use these credentials in production
-version: '3.8'
-
 services:
   postgres:
     image: postgres:15
     environment:
-      POSTGRES_USER: badgers
-      POSTGRES_PASSWORD: badgers_dev_password
-      POSTGRES_DB: badgers
+      POSTGRES_USER: ${POSTGRES_USER:-badgers}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-badgers_dev_password}
+      POSTGRES_DB: ${POSTGRES_DB:-badgers}
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-badgers} -d ${POSTGRES_DB:-badgers}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
 
   redis:
     image: redis:7
@@ -19,20 +21,112 @@ services:
       - "6379:6379"
     volumes:
       - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
 
   minio:
     image: minio/minio:latest
     command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: badgers
-      MINIO_ROOT_PASSWORD: badgers_dev_password
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY:-badgers}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:-badgers_dev_password}
     ports:
       - "9000:9000"
       - "9001:9001"
     volumes:
       - minio_data:/data
 
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    working_dir: /app/backend
+    command: >
+      sh -lc "uv run --project /app/backend alembic upgrade head &&
+              uv run --project /app/backend uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-badgers}:${POSTGRES_PASSWORD:-badgers_dev_password}@postgres:5432/${POSTGRES_DB:-badgers}
+      REDIS_URL: redis://redis:6379/0
+      S3_ENDPOINT: minio:9000
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-badgers}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:-badgers_dev_password}
+      S3_BUCKET: ${S3_BUCKET:-badgers-artifacts}
+      S3_SECURE: "false"
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://api.openai.com/v1}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    volumes:
+      - ./backend:/app/backend
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  worker:
+    build:
+      context: .
+      dockerfile: worker/Dockerfile
+    working_dir: /app
+    command: uv run --project /app/worker python -m worker.main
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-badgers}:${POSTGRES_PASSWORD:-badgers_dev_password}@postgres:5432/${POSTGRES_DB:-badgers}
+      REDIS_URL: redis://redis:6379/0
+      BACKEND_BASE_URL: http://backend:8000
+      S3_ENDPOINT: minio:9000
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-badgers}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:-badgers_dev_password}
+      S3_BUCKET: ${S3_BUCKET:-badgers-artifacts}
+      S3_SECURE: "false"
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://api.openai.com/v1}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      SANDBOX_IMAGE: ${SANDBOX_IMAGE:-badgers-sandbox:latest}
+      SANDBOX_MEMORY_LIMIT: ${SANDBOX_MEMORY_LIMIT:-512m}
+      SANDBOX_CPU_QUOTA: ${SANDBOX_CPU_QUOTA:-50000}
+    volumes:
+      - ./:/app
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      backend:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_started
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    working_dir: /app
+    command: npm run dev -- --hostname 0.0.0.0 --port 3000
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000/api
+      NEXT_PUBLIC_WS_URL: ws://localhost:8000
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - frontend_node_modules:/app/node_modules
+    depends_on:
+      backend:
+        condition: service_healthy
+
 volumes:
   postgres_data:
   redis_data:
   minio_data:
+  frontend_node_modules:
