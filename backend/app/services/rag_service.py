@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import uuid
 
+import structlog
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -10,6 +11,9 @@ from app.models.document_chunk import DocumentChunk
 from app.models.document_index_job import DocumentIndexJob, DocumentIndexStatus
 from app.models.project import ProjectNode
 from app.services.memory_service import memory_service
+from app.services.queue_service import queue_service
+
+logger = structlog.get_logger(__name__)
 
 
 class RagService:
@@ -34,6 +38,22 @@ class RagService:
         db.add(job)
         await db.commit()
         await db.refresh(job)
+        try:
+            await queue_service.publish_index_job(job.id)
+        except Exception as exc:
+            logger.error(
+                "index_job_publish_failed",
+                project_id=str(project_id),
+                project_node_id=str(project_node_id),
+                job_id=str(job.id),
+                error=str(exc),
+                exc_info=True,
+            )
+            job.status = DocumentIndexStatus.FAILED
+            job.error_message = "queue_publish_failed"
+            await db.commit()
+            await db.refresh(job)
+            raise
         return job
 
     async def search(

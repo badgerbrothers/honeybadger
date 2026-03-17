@@ -39,6 +39,23 @@ services:
     volumes:
       - minio_data:/data
 
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: badgers-rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-admin}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-password}
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
   backend:
     build:
       context: .
@@ -50,6 +67,10 @@ services:
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-badgers}:${POSTGRES_PASSWORD:-badgers_dev_password}@postgres:5432/${POSTGRES_DB:-badgers}
       REDIS_URL: redis://redis:6379/0
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: ${RABBITMQ_USER:-admin}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-password}
       S3_ENDPOINT: minio:9000
       S3_ACCESS_KEY: ${S3_ACCESS_KEY:-badgers}
       S3_SECRET_KEY: ${S3_SECRET_KEY:-badgers_dev_password}
@@ -69,21 +90,28 @@ services:
         condition: service_healthy
       minio:
         condition: service_started
+      rabbitmq:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)"]
       interval: 5s
       timeout: 5s
       retries: 20
 
-  worker:
+  worker-taskrun:
     build:
       context: .
       dockerfile: worker/Dockerfile
     working_dir: /app
-    command: uv run --project /app/worker python -m worker.main
+    command: uv run --project /app/worker python -m worker.worker_taskrun
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-badgers}:${POSTGRES_PASSWORD:-badgers_dev_password}@postgres:5432/${POSTGRES_DB:-badgers}
       REDIS_URL: redis://redis:6379/0
+      PYTHONPATH: /app:/app/worker
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: ${RABBITMQ_USER:-admin}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-password}
       BACKEND_BASE_URL: http://backend:8000
       S3_ENDPOINT: minio:9000
       S3_ACCESS_KEY: ${S3_ACCESS_KEY:-badgers}
@@ -96,6 +124,8 @@ services:
       SANDBOX_IMAGE: ${SANDBOX_IMAGE:-badgers-sandbox:latest}
       SANDBOX_MEMORY_LIMIT: ${SANDBOX_MEMORY_LIMIT:-512m}
       SANDBOX_CPU_QUOTA: ${SANDBOX_CPU_QUOTA:-50000}
+      WORKER_TYPE: taskrun
+      WORKER_MODE: rabbitmq
     volumes:
       - ./:/app
       - /var/run/docker.sock:/var/run/docker.sock
@@ -106,6 +136,45 @@ services:
         condition: service_healthy
       minio:
         condition: service_started
+      rabbitmq:
+        condition: service_healthy
+
+  worker-indexjob:
+    build:
+      context: .
+      dockerfile: worker/Dockerfile
+    working_dir: /app
+    command: uv run --project /app/worker python -m worker.worker_indexjob
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-badgers}:${POSTGRES_PASSWORD:-badgers_dev_password}@postgres:5432/${POSTGRES_DB:-badgers}
+      REDIS_URL: redis://redis:6379/0
+      PYTHONPATH: /app:/app/worker
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: ${RABBITMQ_USER:-admin}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-password}
+      BACKEND_BASE_URL: http://backend:8000
+      S3_ENDPOINT: minio:9000
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-badgers}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:-badgers_dev_password}
+      S3_BUCKET: ${S3_BUCKET:-badgers-artifacts}
+      S3_SECURE: "false"
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://api.openai.com/v1}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      WORKER_TYPE: indexjob
+      WORKER_MODE: rabbitmq
+    volumes:
+      - ./:/app
+    depends_on:
+      backend:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_started
+      rabbitmq:
+        condition: service_healthy
 
   frontend:
     build:
@@ -129,4 +198,5 @@ volumes:
   postgres_data:
   redis_data:
   minio_data:
+  rabbitmq_data:
   frontend_node_modules:

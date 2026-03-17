@@ -2,8 +2,21 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.routers import projects, conversations, tasks, rag, runs, artifacts, memory
+from app.services.queue_service import queue_service
 
 app = FastAPI(title="Badgers MVP Backend")
+
+
+@app.on_event("startup")
+async def startup_event():
+    """Initialize external service clients."""
+    await queue_service.connect()
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Release external service clients."""
+    await queue_service.close()
 
 app.add_middleware(
     CORSMiddleware,

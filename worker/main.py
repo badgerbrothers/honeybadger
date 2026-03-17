@@ -9,14 +9,23 @@ import structlog
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 
-from config import settings
 from backend.app.models.document_index_job import DocumentIndexJob, DocumentIndexStatus
-from orchestrator.agent import Agent
-from models.factory import create_model_provider
-from services.backend_client import BackendClient
-from services.storage_client import storage_client
-from tools import get_all_tools
-from skills.registry import get_skill
+try:
+    from config import settings
+    from orchestrator.agent import Agent
+    from models.factory import create_model_provider
+    from services.backend_client import BackendClient
+    from services.storage_client import storage_client
+    from tools import get_all_tools
+    from skills.registry import get_skill
+except ModuleNotFoundError:  # pragma: no cover - package-import fallback
+    from worker.config import settings
+    from worker.orchestrator.agent import Agent
+    from worker.models.factory import create_model_provider
+    from worker.services.backend_client import BackendClient
+    from worker.services.storage_client import storage_client
+    from worker.tools import get_all_tools
+    from worker.skills.registry import get_skill
 
 # Database setup
 engine = create_async_engine(

@@ -1,5 +1,4 @@
 """Tests for Markdown-based skill implementations."""
-from skills.loader import Skill
 from skills.registry import get_skill
 
 

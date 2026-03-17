@@ -46,8 +46,6 @@ async def test_execute_task_run_success():
     """Test successful task execution."""
     from worker.main import execute_task_run
     from backend.app.models.task import Task, TaskRun, TaskStatus
-    from backend.app.models.sandbox import SandboxSession
-
     task_run_id = uuid.uuid4()
     task_id = uuid.uuid4()
 

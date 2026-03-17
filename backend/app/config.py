@@ -11,6 +11,10 @@ class Settings(BaseSettings):
     # Development defaults - DO NOT use in production
     database_url: str = "postgresql://badgers:badgers_dev_password@localhost:5432/badgers"
     redis_url: str = "redis://localhost:6379/0"
+    rabbitmq_host: str = "localhost"
+    rabbitmq_port: int = 5672
+    rabbitmq_user: str = "admin"
+    rabbitmq_password: str = "password"
 
     # OpenAI API
     openai_api_key: str = ""
@@ -42,6 +46,14 @@ class Settings(BaseSettings):
         default=False,
         validation_alias=AliasChoices("S3_SECURE", "MINIO_SECURE"),
     )
+
+    @property
+    def rabbitmq_url(self) -> str:
+        """Build AMQP connection URL from RabbitMQ settings."""
+        return (
+            f"amqp://{self.rabbitmq_user}:{self.rabbitmq_password}"
+            f"@{self.rabbitmq_host}:{self.rabbitmq_port}/"
+        )
 
 
 settings = Settings()

@@ -3,11 +3,14 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 import uuid
+import structlog
 from app.database import get_db
 from app.models.task import Task, TaskRun, TaskStatus
 from app.schemas.task import TaskCreate, TaskUpdate, TaskResponse, TaskRunResponse
+from app.services.queue_service import queue_service
 
 router = APIRouter(prefix="/api/tasks", tags=["tasks"])
+logger = structlog.get_logger(__name__)
 
 @router.get("/", response_model=list[TaskResponse])
 async def list_tasks(conversation_id: uuid.UUID | None = Query(None), project_id: uuid.UUID | None = Query(None), db: AsyncSession = Depends(get_db)):
@@ -78,6 +81,22 @@ async def create_task_run(task_id: uuid.UUID, db: AsyncSession = Depends(get_db)
     task.current_run_id = db_run.id
     await db.commit()
     await db.refresh(db_run)
+    try:
+        await queue_service.publish_task_run(db_run.id)
+    except Exception as exc:
+        logger.error(
+            "task_run_publish_failed",
+            task_id=str(task_id),
+            task_run_id=str(db_run.id),
+            error=str(exc),
+            exc_info=True,
+        )
+        db_run.status = TaskStatus.FAILED
+        db_run.error_message = "queue_publish_failed"
+        task.current_run_id = None
+        await db.commit()
+        await db.refresh(db_run)
+        raise HTTPException(status_code=503, detail="Task run queue unavailable") from exc
     return db_run
 
 

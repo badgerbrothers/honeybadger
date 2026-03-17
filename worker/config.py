@@ -11,6 +11,10 @@ class Settings(BaseSettings):
     # Database
     database_url: str = "postgresql://badgers:badgers_dev_password@localhost:5432/badgers"
     redis_url: str = "redis://localhost:6379/0"
+    rabbitmq_host: str = "localhost"
+    rabbitmq_port: int = 5672
+    rabbitmq_user: str = "admin"
+    rabbitmq_password: str = "password"
 
     # Model settings
     model_provider: ProviderType = ProviderType.OPENAI
@@ -49,11 +53,20 @@ class Settings(BaseSettings):
     )
 
     # Worker settings
+    worker_mode: str = "polling"
     worker_poll_interval: int = 5  # seconds
     backend_base_url: str = "http://localhost:8000"
     sandbox_image: str = "badgers-sandbox:latest"
     sandbox_memory_limit: str = "512m"
     sandbox_cpu_quota: int = 50000
+
+    @property
+    def rabbitmq_url(self) -> str:
+        """Build AMQP connection URL from RabbitMQ settings."""
+        return (
+            f"amqp://{self.rabbitmq_user}:{self.rabbitmq_password}"
+            f"@{self.rabbitmq_host}:{self.rabbitmq_port}/"
+        )
 
 
 settings = Settings()
