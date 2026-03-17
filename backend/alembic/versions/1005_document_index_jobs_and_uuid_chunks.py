@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 revision = "1005_document_index_jobs"
-down_revision = "1004c8374fe5"
+down_revision = "003_memory_system"
 branch_labels = None
 depends_on = None
 
