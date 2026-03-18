@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>知识库与记忆 - Manus Clone</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            display: flex;
+            height: 100vh;
+            background-color: #fcfcfc;
+            color: #1a1a1a;
+        }
+
+        /* 侧边栏 (复用通用布局) */
+        .sidebar {
+            width: 280px;
+            background-color: #f7f7f8;
+            border-right: 1px solid #e5e5e5;
+            display: flex;
+            flex-direction: column;
+            padding: 1rem;
+        }
+        .sidebar-header {
+            margin-bottom: 2rem;
+            font-size: 1.25rem;
+            font-weight: 700;
+            padding: 0 0.5rem;
+            color: #1a1a1a;
+        }
+        .nav-item {
+            padding: 0.75rem 1rem;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            color: #4a4a4a;
+            font-size: 0.95rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            transition: all 0.2s;
+            margin-bottom: 0.25rem;
+            text-decoration: none;
+        }
+        .nav-item:hover { background-color: #e5e5e5; color: #1a1a1a; }
+        .nav-item.active { background-color: #ffffff; color: #1a1a1a; font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+
+        /* 主体内容区 */
+        .main-content {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            background-color: #ffffff;
+            overflow-y: auto;
+        }
+        .header {
+            height: 70px;
+            padding: 0 2rem;
+            display: flex;
+            align-items: center;
+            border-bottom: 1px solid #e5e5e5;
+            background-color: rgba(255,255,255,0.9);
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        .header-title { font-size: 1.25rem; font-weight: 600; }
+
+        .content-area {
+            padding: 2rem;
+            max-width: 1000px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        /* 标签页 */
+        .tabs {
+            display: flex;
+            gap: 2rem;
+            border-bottom: 1px solid #e5e5e5;
+            margin-bottom: 2rem;
+        }
+        .tab {
+            padding: 0.75rem 0;
+            cursor: pointer;
+            font-weight: 500;
+            color: #71717a;
+            position: relative;
+        }
+        .tab.active {
+            color: #1a1a1a;
+        }
+        .tab.active::after {
+            content: '';
+            position: absolute;
+            bottom: -1px;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            background-color: #1a1a1a;
+        }
+
+        /* 卡片视图 */
+        .card {
+            background-color: #ffffff;
+            border: 1px solid #e5e5e5;
+            border-radius: 1rem;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+        }
+        .card-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .card-desc {
+            color: #71717a;
+            font-size: 0.9rem;
+            margin-bottom: 1.5rem;
+        }
+
+        /* 上传区域 */
+        .upload-area {
+            border: 2px dashed #d4d4d8;
+            border-radius: 0.75rem;
+            padding: 3rem 2rem;
+            text-align: center;
+            background-color: #fafafa;
+            cursor: pointer;
+            transition: border-color 0.2s, background-color 0.2s;
+            margin-bottom: 2rem;
+        }
+        .upload-area:hover {
+            border-color: #a1a1aa;
+            background-color: #f4f4f5;
+        }
+        .upload-icon { color: #a1a1aa; margin-bottom: 1rem; }
+        
+        /* 列表视图 */
+        .data-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+        .data-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 1rem;
+            border: 1px solid #e5e5e5;
+            border-radius: 0.5rem;
+            transition: box-shadow 0.2s;
+        }
+        .data-item:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+        .item-info { display: flex; align-items: center; gap: 1rem; }
+        .item-icon {
+            width: 40px; height: 40px; border-radius: 0.5rem; background-color: #f0f4ff;
+            color: #2563eb; display: flex; align-items: center; justify-content: center;
+        }
+        .item-name { font-weight: 500; font-size: 0.95rem; }
+        .item-meta { font-size: 0.8rem; color: #71717a; margin-top: 0.25rem; }
+        
+        .status-badge {
+            padding: 0.25rem 0.5rem;
+            border-radius: 1rem;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+        .status-indexed { background-color: #dcfce7; color: #166534; }
+        .status-processing { background-color: #fef08a; color: #854d0e; }
+
+        .btn {
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            border: 1px solid transparent;
+            transition: all 0.2s;
+        }
+        .btn-outline { border-color: #e5e5e5; background-color: white; color: #1a1a1a; }
+        .btn-outline:hover { background-color: #f4f4f5; }
+        .btn-primary { background-color: #1a1a1a; color: white; }
+        .btn-primary:hover { background-color: #3f3f46; }
+
+        svg { width: 1.25rem; height: 1.25rem; }
+    </style>
+</head>
+<body>
+    <!-- 侧边栏导航 -->
+    <aside class="sidebar">
+        <div class="sidebar-header">Manus 工作台</div>
+        <nav>
+            <a href="manus_clone.html" class="nav-item">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path></svg>
+                工作区会话
+            </a>
+            <a href="#" class="nav-item active">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+                知识库与记忆
+            </a>
+            <a href="tools_skills.html" class="nav-item">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                工具与技能
+            </a>
+        </nav>
+    </aside>
+
+    <!-- 主体区域 -->
+    <main class="main-content">
+        <header class="header">
+            <h1 class="header-title">知识库与记忆</h1>
+        </header>
+
+        <div class="content-area">
+            <div class="tabs">
+                <div class="tab active">文档数据源 (RAG)</div>
+                <div class="tab">全局记忆库</div>
+                <div class="tab">上下文关联</div>
+            </div>
+
+            <div class="card">
+                <div class="card-title">
+                    上传知识文档
+                </div>
+                <p class="card-desc">将您的 PDF、Word、TXT 或是代码库压缩包上传，Agent 会自动向量化并学习这些内容，以便在对话中随时检索并引用。</p>
+                
+                <div class="upload-area">
+                    <svg class="upload-icon" style="width: 48px; height: 48px;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
+                    <p style="font-weight: 500; font-size: 1.1rem; color: #1a1a1a;">点击或拖拽文件到此处</p>
+                    <p style="color: #71717a; font-size: 0.9rem; margin-top: 0.5rem;">支持 .pdf, .docx, .md, .txt，单个文件最大 50MB</p>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-title">
+                    已连接的数据源
+                    <button class="btn btn-outline" style="font-size: 0.8rem; padding: 0.35rem 0.75rem;">+ 添加网页/Notion</button>
+                </div>
+                
+                <div class="data-list">
+                    <div class="data-item">
+                        <div class="item-info">
+                            <div class="item-icon">
+                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                            </div>
+                            <div>
+                                <div class="item-name">2026_Q1_Financial_Report.pdf</div>
+                                <div class="item-meta">2.4 MB • 上传于 2 小时前 • 包含 45 页</div>
+                            </div>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 1rem;">
+                            <span class="status-badge status-indexed">已索引</span>
+                            <button class="btn btn-outline" style="padding: 0.25rem 0.5rem; color: #ef4444; border-color: transparent;">删除</button>
+                        </div>
+                    </div>
+
+                    <div class="data-item">
+                        <div class="item-info">
+                            <div class="item-icon" style="background-color: #f3f4f6; color: #4b5563;">
+                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg>
+                            </div>
+                            <div>
+                                <div class="item-name">frontend-components-library.zip</div>
+                                <div class="item-meta">12.1 MB • 上传于 10 分钟前 • 包含 128 个文件</div>
+                            </div>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 1rem;">
+                            <span class="status-badge status-processing">处理中 (45%)</span>
+                            <button class="btn btn-outline" style="padding: 0.25rem 0.5rem; color: #ef4444; border-color: transparent;">取消</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 模拟全局记忆卡片（当切换Tab时显示，这里简单放在下面作为Demo） -->
+            <div class="card" style="margin-top: 2rem;">
+                <div class="card-title">
+                    全局记忆摘要
+                </div>
+                <p class="card-desc">Agent 在与您的对话中自动提取并记住的关键事实。您可以随时编辑或删除这些记忆，以纠正 Agent 的认知。</p>
+                <div style="background-color: #fafafa; border: 1px solid #e5e5e5; border-radius: 0.5rem; padding: 1rem;">
+                    <ul style="list-style-type: disc; margin-left: 1.5rem; color: #4a4a4a; line-height: 1.8;">
+                        <li>偏好前端技术栈为 React (TypeScript) 搭配 Vanilla CSS，尽量不使用 TailwindCSS。</li>
+                        <li>当前正在开发一个名为 "Manus Clone" 的 Agent 工作台项目。</li>
+                        <li>操作系统环境为 Windows 11 (win32)。</li>
+                        <li>偏好代码注释使用中文编写。</li>
+                    </ul>
+                    <div style="margin-top: 1rem; text-align: right;">
+                        <button class="btn btn-outline">编辑记忆</button>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </main>
+</body>
+</html>

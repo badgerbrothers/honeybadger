@@ -1,11 +1,15 @@
 # Badgers MVP
 
-Badgers is an AI task execution system with a modular monolith backend + independent worker architecture.
+Badgers is an AI task execution system with a domain-split microservices architecture.
 
-- Backend is the control plane (`FastAPI`)
+- Project Service (`FastAPI`) owns project/conversation APIs
+- Task Service (`FastAPI`) owns task/run/artifact APIs
+- RAG Service (`FastAPI`) owns retrieval and indexing APIs
+- Storage Service (`FastAPI`) provides object storage API
+- API Gateway (`nginx`) is the single external API entry
 - Worker is the execution plane (`Python`, Docker sandbox)
 - Frontend is `Next.js`
-- Current scheduler baseline is **DB polling** (Redis is reserved for future queueing)
+- Queue baseline is **RabbitMQ**
 
 ## Prerequisites
 
@@ -43,7 +47,11 @@ docker compose up --build -d
 5. Open:
 
 - Frontend: `http://localhost:3000`
-- Backend API docs: `http://localhost:8000/docs`
+- API Gateway: `http://localhost`
+- Project Service docs: `http://localhost:8001/docs`
+- Task Service docs: `http://localhost:8002/docs`
+- RAG Service docs: `http://localhost:8003/docs`
+- Storage Service docs: `http://localhost:8005/docs`
 - MinIO console: `http://localhost:9001`
 
 ## Manual Start (Without Compose App Services)
@@ -56,24 +64,49 @@ Use this mode if you only run infra through compose.
 docker compose up -d postgres redis minio
 ```
 
-2. Backend:
+2. Start project service:
 
 ```bash
-cd backend
+cd services/project-service
 uv sync
-uv run alembic upgrade head
-uv run uvicorn app.main:app --reload --port 8000
+uv run uvicorn app.main:app --reload --port 8001
 ```
 
-3. Worker:
+3. Start task service:
+
+```bash
+cd services/task-service
+uv sync
+uv run uvicorn app.main:app --reload --port 8002
+```
+
+4. Start rag service:
+
+```bash
+cd services/rag-service
+uv sync
+uv run uvicorn app.main:app --reload --port 8003
+```
+
+5. Start storage service:
+
+```bash
+cd services/storage-service
+uv sync
+uv run uvicorn app.main:app --reload --port 8005
+```
+
+6. Start workers:
 
 ```bash
 cd worker
 uv sync
-uv run python -m worker.main
+set BACKEND_BASE_URL=http://localhost:8002
+uv run python -m worker.worker_taskrun
+uv run python -m worker.worker_indexjob
 ```
 
-4. Frontend:
+7. Frontend:
 
 ```bash
 cd frontend
@@ -83,10 +116,10 @@ npm run dev
 
 ## Current Architecture Baseline
 
-- Task dispatch: backend writes `TaskRun`, worker claims by DB polling
-- Run events: worker -> backend ingest endpoint -> websocket fan-out
-- Artifact flow: tool result -> artifact upload -> project save
-- RAG flow: project upload schedules indexing jobs, worker executes indexing jobs
+- Task dispatch: task-service publishes TaskRun to RabbitMQ queue
+- Run events: worker -> task-service ingest endpoint -> websocket fan-out
+- Artifact flow: tool result -> task-service upload -> storage-service/MinIO -> project save
+- RAG flow: project upload schedules indexing jobs, index worker executes jobs
 
 ## Key Endpoints
 
@@ -108,11 +141,17 @@ npm run dev
 
 ## Configuration Notes
 
-- Backend and worker use `S3_*` env names (legacy `MINIO_*` aliases are compatibility-only)
-- Compose uses service hostnames internally:
+- Services and worker use `S3_*` env names (legacy `MINIO_*` aliases are compatibility-only)
+- Service HTTP client URLs:
+  - `STORAGE_SERVICE_URL` (used by project/task service)
+  - `RAG_SERVICE_URL` (used by project service)
+- Compose internal hostnames:
   - PostgreSQL: `postgres:5432`
   - MinIO: `minio:9000`
-  - Backend from worker: `http://backend:8000`
+  - Project Service: `http://project-service:8000`
+  - Task Service: `http://task-service:8000`
+  - RAG Service: `http://rag-service:8000`
+  - API Gateway: `http://api-gateway:80`
 
 ## Testing
 

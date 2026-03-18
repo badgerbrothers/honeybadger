@@ -2,9 +2,10 @@
 from pathlib import Path
 from typing import Dict, List
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import delete
+from sqlalchemy import delete, text
 from .embeddings import EmbeddingService
 from .chunker import chunk_text
+from .semantic_chunker import SemanticChunker
 from .parsers import TxtParser, MarkdownParser, PdfParser
 
 
@@ -58,8 +59,11 @@ class DocumentIndexer:
         result = parser.parse(Path(file_path))
         return result["text"]
 
-    async def _chunk_document(self, text: str) -> List[Dict]:
-        """Chunk document text."""
+    async def _chunk_document(self, text: str, use_semantic: bool = True) -> List[Dict]:
+        """Chunk document text with optional semantic mode."""
+        if use_semantic:
+            semantic_chunker = SemanticChunker(max_chunk_size=512, overlap=50)
+            return semantic_chunker.chunk_text(text)
         return chunk_text(text, chunk_size=512, overlap=50)
 
     async def _generate_embeddings(self, chunks: List[Dict]) -> List[Dict]:
@@ -106,4 +110,16 @@ class DocumentIndexer:
             )
             self.db_session.add(db_chunk)
 
+        await self.db_session.flush()
+        await self.db_session.execute(
+            text(
+                """
+                UPDATE document_chunk
+                SET text_search_vector = to_tsvector('english', content)
+                WHERE project_id = :project_id
+                  AND file_path = :file_path
+                """
+            ),
+            {"project_id": str(project_id), "file_path": file_path},
+        )
         await self.db_session.commit()

@@ -1,15 +1,23 @@
 """Embedding generation service using OpenAI API."""
+import hashlib
+import math
+import logging
+
 from openai import AsyncOpenAI, RateLimitError, APIError, APITimeoutError
 from typing import List
 import asyncio
 
+logger = logging.getLogger(__name__)
+
 
 class EmbeddingService:
-    """Service for generating text embeddings using OpenAI."""
+    """Service for generating text embeddings using OpenAI with local fallback."""
 
-    def __init__(self, api_key: str, model: str = "text-embedding-3-small"):
-        self.client = AsyncOpenAI(api_key=api_key)
+    def __init__(self, api_key: str | None, model: str = "text-embedding-3-small", dimension: int = 1536):
+        self.client = AsyncOpenAI(api_key=api_key) if api_key else None
         self.model = model
+        self.dimension = dimension
+        self._fallback_logged = False
 
     async def generate_embedding(self, text: str) -> List[float]:
         """Generate embedding for a single text."""
@@ -19,6 +27,10 @@ class EmbeddingService:
         """Generate embeddings for multiple texts (max 2048)."""
         if len(texts) > 2048:
             raise ValueError("Batch size cannot exceed 2048")
+
+        if self.client is None:
+            self._log_fallback_once("missing_openai_api_key")
+            return [self._fallback_embedding(text) for text in texts]
 
         for attempt in range(3):
             try:
@@ -31,15 +43,60 @@ class EmbeddingService:
                 if attempt < 2:
                     await asyncio.sleep(2 ** attempt)
                 else:
-                    raise
+                    self._log_fallback_once("openai_rate_limited")
+                    break
             except APIError as e:
                 status_code = getattr(e, "status_code", None)
                 if attempt < 2 and (status_code is None or status_code >= 500):
                     await asyncio.sleep(2 ** attempt)
                 else:
-                    raise
+                    self._log_fallback_once(f"openai_api_error:{status_code}")
+                    break
             except APITimeoutError:
                 if attempt < 2:
                     await asyncio.sleep(2 ** attempt)
                 else:
-                    raise
+                    self._log_fallback_once("openai_timeout")
+                    break
+            except Exception as e:
+                if attempt < 2:
+                    await asyncio.sleep(2 ** attempt)
+                else:
+                    self._log_fallback_once(f"openai_error:{type(e).__name__}")
+                    break
+
+        return [self._fallback_embedding(text) for text in texts]
+
+    def _fallback_embedding(self, text: str) -> List[float]:
+        """Create deterministic local embedding to keep indexing/search available."""
+        vector = [0.0] * self.dimension
+        tokens = text.lower().split()
+
+        if not tokens:
+            return vector
+
+        for token in tokens:
+            digest = hashlib.sha256(token.encode("utf-8")).digest()
+            for offset in range(0, len(digest), 4):
+                chunk = int.from_bytes(digest[offset : offset + 4], "big")
+                index = chunk % self.dimension
+                sign = 1.0 if (chunk & 1) == 0 else -1.0
+                vector[index] += sign
+
+        norm = math.sqrt(sum(value * value for value in vector))
+        if norm == 0:
+            return vector
+        return [value / norm for value in vector]
+
+    def _log_fallback_once(self, reason: str) -> None:
+        if self._fallback_logged:
+            return
+        self._fallback_logged = True
+        logger.warning(
+            "embedding_fallback_enabled",
+            extra={
+                "reason": reason,
+                "dimension": self.dimension,
+                "model": self.model,
+            },
+        )

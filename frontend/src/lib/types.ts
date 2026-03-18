@@ -21,11 +21,17 @@ export interface Task {
   project_id: string;
   goal: string;
   skill: string | null;
-  model: string | null;
+  model: string;
   current_run_id: string | null;
+  queue_status: QueueStatus;
+  scheduled_at: string | null;
+  priority: number;
+  assigned_agent: string | null;
   created_at: string;
   updated_at: string;
 }
+
+export type QueueStatus = 'scheduled' | 'queued' | 'in_progress' | 'done';
 
 export interface TaskRun {
   id: string;
@@ -74,6 +80,9 @@ export interface CreateTaskInput {
   goal: string;
   skill?: string | null;
   model?: string | null;
+  scheduled_at?: string | null;
+  priority?: number;
+  assigned_agent?: string | null;
 }
 
 export interface Artifact {

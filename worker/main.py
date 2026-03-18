@@ -171,7 +171,11 @@ async def retrieve_project_context(task, task_run, session: AsyncSession) -> str
     from rag.retriever import DocumentRetriever
 
     retriever = DocumentRetriever(
-        EmbeddingService(settings.openai_api_key, settings.embedding_model),
+        EmbeddingService(
+            settings.openai_api_key,
+            settings.embedding_model,
+            settings.embedding_dimension,
+        ),
         session,
     )
     chunks = await retriever.retrieve(
@@ -272,7 +276,11 @@ async def execute_document_index_job(job_id: uuid.UUID, session: AsyncSession):
         local_path.write_bytes(file_bytes)
 
         indexer = DocumentIndexer(
-            EmbeddingService(settings.openai_api_key, settings.embedding_model),
+            EmbeddingService(
+                settings.openai_api_key,
+                settings.embedding_model,
+                settings.embedding_dimension,
+            ),
             session,
         )
         chunk_count = await indexer.index_document(job.project_id, str(local_path))

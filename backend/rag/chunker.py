@@ -7,6 +7,14 @@ def chunk_text(text: str, chunk_size: int = 512, overlap: int = 50) -> List[Dict
     """Split text into chunks with overlap."""
     encoding = tiktoken.get_encoding("cl100k_base")
     tokens = encoding.encode(text)
+    if not tokens:
+        return [{
+            "content": "",
+            "chunk_index": 0,
+            "start_pos": 0,
+            "end_pos": 0,
+            "token_count": 0,
+        }]
 
     chunks = []
     start = 0

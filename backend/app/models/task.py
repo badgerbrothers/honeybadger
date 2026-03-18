@@ -1,6 +1,6 @@
 """Task and TaskRun models."""
 from __future__ import annotations
-from sqlalchemy import String, ForeignKey, Text, Enum as SQLEnum, JSON
+from sqlalchemy import String, ForeignKey, Text, Enum as SQLEnum, JSON, Integer
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from datetime import datetime
 import uuid
@@ -14,6 +14,14 @@ class TaskStatus(enum.Enum):
     FAILED = "failed"
     CANCELLED = "cancelled"
 
+
+class QueueStatus(enum.Enum):
+    SCHEDULED = "scheduled"
+    QUEUED = "queued"
+    IN_PROGRESS = "in_progress"
+    DONE = "done"
+
+
 class Task(Base, TimestampMixin):
     __tablename__ = "tasks"
 
@@ -25,6 +33,12 @@ class Task(Base, TimestampMixin):
     skill: Mapped[str | None] = mapped_column(String(100), nullable=True)
     model: Mapped[str] = mapped_column(String(100), nullable=False, default="gpt-4-turbo-preview")
     current_run_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("task_runs.id", use_alter=True, name="fk_task_current_run"), nullable=True)
+    queue_status: Mapped[QueueStatus] = mapped_column(
+        SQLEnum(QueueStatus), nullable=False, default=QueueStatus.SCHEDULED, index=True
+    )
+    scheduled_at: Mapped[datetime | None] = mapped_column(nullable=True, index=True)
+    priority: Mapped[int] = mapped_column(Integer, nullable=False, default=0, index=True)
+    assigned_agent: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
     # Relationships
     conversation: Mapped["Conversation"] = relationship(back_populates="tasks")

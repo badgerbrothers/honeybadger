@@ -23,6 +23,7 @@ export default function RunDetailPage() {
   const runId = params?.id || null;
   const { data: run, isLoading, error } = useTaskRun(runId);
   const { data: artifacts } = useRunArtifacts(runId);
+  const initialEvents = useMemo(() => normalizeEvents(run?.logs ?? null), [run?.logs]);
 
   if (isLoading) {
     return (
@@ -41,8 +42,6 @@ export default function RunDetailPage() {
       </Container>
     );
   }
-
-  const initialEvents = useMemo(() => normalizeEvents(run.logs), [run.logs]);
 
   return (
     <Container>

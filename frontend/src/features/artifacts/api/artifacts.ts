@@ -1,7 +1,7 @@
 import { request } from '@/lib/api';
 import { Artifact, SavedProjectNode } from '@/lib/types';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost/api';
 
 export async function fetchProjectArtifacts(projectId: string): Promise<Artifact[]> {
   return request<Artifact[]>(`/projects/${projectId}/artifacts`);

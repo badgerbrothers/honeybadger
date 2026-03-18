@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { WebSocketClient } from '@/lib/websocket';
 import { TaskRunEvent } from '../types';
 
-const WS_BASE = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8000';
+const WS_BASE = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost';
 
 function eventKey(event: TaskRunEvent): string {
   return JSON.stringify(event);

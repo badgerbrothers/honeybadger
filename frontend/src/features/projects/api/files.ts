@@ -18,7 +18,7 @@ export async function uploadProjectFile(
   formData.append('file', file);
 
   const response = await fetch(
-    `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api'}/projects/${projectId}/files/upload`,
+    `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost/api'}/projects/${projectId}/files/upload`,
     {
       method: 'POST',
       body: formData,
