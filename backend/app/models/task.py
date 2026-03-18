@@ -31,7 +31,7 @@ class Task(Base, TimestampMixin):
 
     goal: Mapped[str] = mapped_column(Text, nullable=False)
     skill: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    model: Mapped[str] = mapped_column(String(100), nullable=False, default="gpt-4-turbo-preview")
+    model: Mapped[str] = mapped_column(String(100), nullable=False, default="gpt-5.3-codex")
     current_run_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("task_runs.id", use_alter=True, name="fk_task_current_run"), nullable=True)
     queue_status: Mapped[QueueStatus] = mapped_column(
         SQLEnum(QueueStatus), nullable=False, default=QueueStatus.SCHEDULED, index=True

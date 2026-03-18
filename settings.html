@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>系统设置 - Manus Clone</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            display: flex;
+            height: 100vh;
+            background-color: #fcfcfc;
+            color: #1a1a1a;
+        }
+
+        /* 侧边栏 (复用) */
+        .sidebar {
+            width: 280px; background-color: #f7f7f8; border-right: 1px solid #e5e5e5; display: flex; flex-direction: column; padding: 1rem;
+        }
+        .sidebar-header { margin-bottom: 2rem; font-size: 1.25rem; font-weight: 700; padding: 0 0.5rem; color: #1a1a1a; }
+        .nav-item { padding: 0.75rem 1rem; border-radius: 0.5rem; cursor: pointer; color: #4a4a4a; font-size: 0.95rem; display: flex; align-items: center; gap: 0.75rem; transition: all 0.2s; margin-bottom: 0.25rem; text-decoration: none; }
+        .nav-item:hover { background-color: #e5e5e5; color: #1a1a1a; }
+        .nav-item.active { background-color: #ffffff; color: #1a1a1a; font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+
+        .main-content { flex-grow: 1; display: flex; flex-direction: column; background-color: #ffffff; overflow-y: auto; }
+        .header { height: 70px; padding: 0 2rem; display: flex; align-items: center; border-bottom: 1px solid #e5e5e5; position: sticky; top: 0; background: white; z-index: 10;}
+        .header-title { font-size: 1.25rem; font-weight: 600; }
+
+        .content-area { padding: 2rem; max-width: 800px; width: 100%; margin: 0 auto; }
+
+        .setting-group { margin-bottom: 3rem; }
+        .group-title { font-size: 1.1rem; font-weight: 600; margin-bottom: 1.5rem; padding-bottom: 0.5rem; border-bottom: 1px solid #f4f4f5; }
+        
+        .form-row { display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1.5rem; }
+        .form-label { font-weight: 500; font-size: 0.95rem; color: #3f3f46; }
+        .form-desc { font-size: 0.85rem; color: #71717a; margin-bottom: 0.25rem; }
+        
+        .input-text { padding: 0.6rem 1rem; border: 1px solid #d4d4d8; border-radius: 0.5rem; font-size: 1rem; outline: none; transition: border-color 0.2s; font-family: monospace; }
+        .input-text:focus { border-color: #2563eb; }
+        
+        select { padding: 0.6rem; border: 1px solid #d4d4d8; border-radius: 0.5rem; font-size: 1rem; outline: none; background: white;}
+
+        .btn { padding: 0.6rem 1.2rem; border-radius: 0.5rem; font-size: 0.95rem; font-weight: 500; cursor: pointer; border: none; background-color: #1a1a1a; color: white; transition: all 0.2s; }
+        .btn:hover { background-color: #3f3f46; }
+
+        svg { width: 1.25rem; height: 1.25rem; }
+    </style>
+</head>
+<body>
+    <aside class="sidebar">
+        <div class="sidebar-header">Manus 工作台</div>
+        <nav>
+            <a href="dashboard.html" class="nav-item">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path></svg>
+                任务看板
+            </a>
+            <a href="manus_clone.html" class="nav-item">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path></svg>
+                工作区会话
+            </a>
+            <a href="#" class="nav-item active">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path></svg>
+                系统设置
+            </a>
+        </nav>
+    </aside>
+
+    <main class="main-content">
+        <header class="header"><h1 class="header-title">系统设置</h1></header>
+        
+        <div class="content-area">
+            <div class="setting-group">
+                <div class="group-title">模型提供商 (Model Provider)</div>
+                <div class="form-row">
+                    <label class="form-label">核心推理模型</label>
+                    <div class="form-desc">选择 Agent 用于复杂逻辑规划和代码编写的大模型。</div>
+                    <select>
+                        <option>Claude 3.5 Sonnet (推荐)</option>
+                        <option>GPT-4o</option>
+                        <option>Gemini 1.5 Pro</option>
+                    </select>
+                </div>
+                <div class="form-row">
+                    <label class="form-label">API Key</label>
+                    <div class="form-desc">您的密钥仅保存在本地存储中，不会上传至服务器。</div>
+                    <input type="password" class="input-text" value="sk-ant-api03-xxxxxxxxxxxxxxxxxxxxxxxxx" placeholder="sk-...">
+                </div>
+                <button class="btn" style="background-color: white; color: #1a1a1a; border: 1px solid #d4d4d8;">测试连接</button>
+            </div>
+
+            <div class="setting-group">
+                <div class="group-title">Agent 行为偏好</div>
+                <div class="form-row">
+                    <label class="form-label">系统级 System Prompt</label>
+                    <div class="form-desc">在这里设置的规则会对所有新建的 Agent 任务生效（例如：默认语言、代码风格）。</div>
+                    <textarea class="input-text" rows="4" style="font-family: inherit;">1. 回复请始终使用中文。
+2. 在编写代码时，优先使用最新的 ES6 语法，且不要省略注释。</textarea>
+                </div>
+            </div>
+
+            <div class="setting-group">
+                <div class="group-title">外观与界面</div>
+                <div class="form-row">
+                    <label class="form-label">主题模式</label>
+                    <select style="width: 200px;">
+                        <option>浅色模式 (Light)</option>
+                        <option>深色模式 (Dark)</option>
+                        <option>跟随系统</option>
+                    </select>
+                </div>
+            </div>
+
+            <div style="text-align: right; padding-top: 1rem; border-top: 1px solid #e5e5e5;">
+                <button class="btn">保存设置</button>
+            </div>
+        </div>
+    </main>
+</body>
+</html>

@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>产出物库 - Manus Clone</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            display: flex;
+            height: 100vh;
+            background-color: #fcfcfc;
+            color: #1a1a1a;
+        }
+
+        /* 侧边栏 (复用) */
+        .sidebar {
+            width: 280px; background-color: #f7f7f8; border-right: 1px solid #e5e5e5; display: flex; flex-direction: column; padding: 1rem; flex-shrink: 0;
+        }
+        .sidebar-header { margin-bottom: 2rem; font-size: 1.25rem; font-weight: 700; padding: 0 0.5rem; color: #1a1a1a; }
+        .nav-item { padding: 0.75rem 1rem; border-radius: 0.5rem; cursor: pointer; color: #4a4a4a; font-size: 0.95rem; display: flex; align-items: center; gap: 0.75rem; transition: all 0.2s; margin-bottom: 0.25rem; text-decoration: none; }
+        .nav-item:hover { background-color: #e5e5e5; color: #1a1a1a; }
+        .nav-item.active { background-color: #ffffff; color: #1a1a1a; font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+
+        .main-content { flex-grow: 1; display: flex; flex-direction: column; background-color: #ffffff; overflow-y: auto; }
+        .header { height: 70px; padding: 0 2rem; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #e5e5e5; position: sticky; top: 0; background: rgba(255,255,255,0.9); z-index: 10; backdrop-filter: blur(8px);}
+        .header-title { font-size: 1.25rem; font-weight: 600; }
+
+        .content-area { padding: 2rem; max-width: 1200px; width: 100%; margin: 0 auto; }
+
+        /* 工具栏 */
+        .toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
+        .search-box {
+            position: relative; width: 300px;
+        }
+        .search-input {
+            width: 100%; padding: 0.6rem 1rem 0.6rem 2.5rem; border: 1px solid #d4d4d8; border-radius: 2rem; outline: none; font-size: 0.9rem; transition: border-color 0.2s;
+        }
+        .search-input:focus { border-color: #a1a1aa; }
+        .search-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: #a1a1aa; width: 18px; height: 18px; }
+
+        /* 文件网格 */
+        .file-grid {
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 1.5rem;
+        }
+        .file-card {
+            border: 1px solid #e5e5e5; border-radius: 1rem; overflow: hidden; background: #ffffff; transition: box-shadow 0.2s, transform 0.2s; cursor: pointer; display: flex; flex-direction: column;
+        }
+        .file-card:hover { box-shadow: 0 8px 24px rgba(0,0,0,0.06); transform: translateY(-2px); border-color: #d4d4d8; }
+        
+        .file-preview {
+            height: 140px; background-color: #f4f4f5; display: flex; align-items: center; justify-content: center; border-bottom: 1px solid #e5e5e5; position: relative;
+        }
+        .file-preview.code { background-color: #1e1e1e; color: #d4d4d8; align-items: flex-start; justify-content: flex-start; padding: 1rem; font-family: monospace; font-size: 0.75rem; overflow: hidden; }
+        .file-preview.image { background-image: linear-gradient(45deg, #f3f4f6 25%, transparent 25%, transparent 75%, #f3f4f6 75%, #f3f4f6), linear-gradient(45deg, #f3f4f6 25%, transparent 25%, transparent 75%, #f3f4f6 75%, #f3f4f6); background-size: 20px 20px; background-position: 0 0, 10px 10px; }
+        
+        .file-icon-large { width: 48px; height: 48px; color: #71717a; }
+        
+        .file-info { padding: 1rem; }
+        .file-name { font-weight: 600; font-size: 0.95rem; margin-bottom: 0.25rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #1a1a1a; }
+        .file-meta { font-size: 0.8rem; color: #71717a; display: flex; justify-content: space-between; }
+        
+        .task-tag {
+            display: inline-block; font-size: 0.7rem; padding: 0.15rem 0.5rem; background-color: #f3f4f6; border-radius: 1rem; color: #4b5563; margin-top: 0.75rem; border: 1px solid #e5e5e5;
+        }
+
+        svg { width: 1.25rem; height: 1.25rem; }
+    </style>
+</head>
+<body>
+    <aside class="sidebar">
+        <div class="sidebar-header">Manus 工作台</div>
+        <nav>
+            <a href="dashboard.html" class="nav-item">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path></svg>
+                任务看板
+            </a>
+            <a href="manus_clone.html" class="nav-item">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path></svg>
+                工作区会话
+            </a>
+            <a href="#" class="nav-item active">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"></path></svg>
+                产出物库
+            </a>
+            <a href="settings.html" class="nav-item">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path></svg>
+                设置
+            </a>
+        </nav>
+    </aside>
+
+    <main class="main-content">
+        <header class="header">
+            <h1 class="header-title">产出物库 (Artifacts)</h1>
+        </header>
+
+        <div class="content-area">
+            <div class="toolbar">
+                <div style="display: flex; gap: 1rem;">
+                    <select style="padding: 0.5rem; border-radius: 0.5rem; border: 1px solid #d4d4d8; outline: none; background: white;">
+                        <option>全部分类</option>
+                        <option>代码文件 (.py, .js)</option>
+                        <option>数据表格 (.csv, .xlsx)</option>
+                        <option>文档 (.md, .pdf)</option>
+                    </select>
+                </div>
+                <div class="search-box">
+                    <svg class="search-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                    <input type="text" class="search-input" placeholder="搜索文件名或关联任务...">
+                </div>
+            </div>
+
+            <div class="file-grid">
+                <!-- Python 代码文件 -->
+                <div class="file-card">
+                    <div class="file-preview code">
+def fetch_hn():<br>
+&nbsp;&nbsp;url = "https://hacker-news.firebaseio.com/v0/topstories.json"<br>
+&nbsp;&nbsp;response = requests.get(url)<br>
+&nbsp;&nbsp;return response.json()[:10]
+                    </div>
+                    <div class="file-info">
+                        <div class="file-name">hn_scraper.py</div>
+                        <div class="file-meta"><span>1.2 KB</span><span>10 分钟前</span></div>
+                        <div class="task-tag">关联任务: 爬取 HN 标题</div>
+                    </div>
+                </div>
+
+                <!-- CSV 数据文件 -->
+                <div class="file-card">
+                    <div class="file-preview">
+                        <svg class="file-icon-large" style="color: #16a34a;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                    </div>
+                    <div class="file-info">
+                        <div class="file-name">top_news_20260318.csv</div>
+                        <div class="file-meta"><span>4.5 KB</span><span>8 分钟前</span></div>
+                        <div class="task-tag">关联任务: 爬取 HN 标题</div>
+                    </div>
+                </div>
+
+                <!-- 生成的图片 -->
+                <div class="file-card">
+                    <div class="file-preview image">
+                        <svg class="file-icon-large" style="color: #2563eb;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                    </div>
+                    <div class="file-info">
+                        <div class="file-name">revenue_chart_q1.png</div>
+                        <div class="file-meta"><span>128 KB</span><span>2 小时前</span></div>
+                        <div class="task-tag">关联任务: 财报数据可视化</div>
+                    </div>
+                </div>
+
+                <!-- Markdown 文档 -->
+                <div class="file-card">
+                    <div class="file-preview" style="background-color: #fafafa; border-left: 4px solid #ea580c;">
+                        <svg class="file-icon-large" style="color: #ea580c;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                    </div>
+                    <div class="file-info">
+                        <div class="file-name">PRD_Manus_Clone.md</div>
+                        <div class="file-meta"><span>12 KB</span><span>昨天</span></div>
+                        <div class="task-tag">关联任务: 编写产品需求文档</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+</body>
+</html>

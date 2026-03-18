@@ -7,6 +7,7 @@ MODEL_REGISTRY = {
     "gpt-4": ProviderType.OPENAI,
     "gpt-4-turbo": ProviderType.OPENAI,
     "gpt-4-turbo-preview": ProviderType.OPENAI,
+    "gpt-5.3-codex": ProviderType.OPENAI,
     "gpt-3.5-turbo": ProviderType.OPENAI,
     "gpt-3.5-turbo-16k": ProviderType.OPENAI,
     # Anthropic models

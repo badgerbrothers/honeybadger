@@ -21,7 +21,7 @@ export default function ConversationDetailPage() {
   const [messageContent, setMessageContent] = useState('');
   const [goal, setGoal] = useState('');
   const [skill, setSkill] = useState('');
-  const [model, setModel] = useState('gpt-4-turbo-preview');
+  const [model, setModel] = useState('gpt-5.3-codex');
 
   const { data: conversation, isLoading: isConversationLoading } = useConversation(conversationId);
   const { data: messages, isLoading: isMessagesLoading } = useConversationMessages(conversationId);

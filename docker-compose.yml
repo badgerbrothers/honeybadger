@@ -217,6 +217,7 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://api.openai.com/v1}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      DEFAULT_MAIN_MODEL: ${DEFAULT_MAIN_MODEL:-gpt-5.3-codex}
       SANDBOX_IMAGE: ${SANDBOX_IMAGE:-badgers-sandbox:latest}
       SANDBOX_MEMORY_LIMIT: ${SANDBOX_MEMORY_LIMIT:-2g}
       SANDBOX_CPU_QUOTA: ${SANDBOX_CPU_QUOTA:-50000}
@@ -258,6 +259,7 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://api.openai.com/v1}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      DEFAULT_MAIN_MODEL: ${DEFAULT_MAIN_MODEL:-gpt-5.3-codex}
       WORKER_TYPE: indexjob
       WORKER_MODE: rabbitmq
     volumes:

@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     openai_base_url: str | None = None
     anthropic_api_key: str | None = None
     default_model: str = "gpt-4"
-    default_main_model: str = "gpt-4-turbo-preview"
+    default_main_model: str = "gpt-5.3-codex"
     default_openai_model: str = "gpt-4-turbo"
     default_anthropic_model: str = "claude-3-opus-20240229"
     embedding_model: str = "text-embedding-3-small"

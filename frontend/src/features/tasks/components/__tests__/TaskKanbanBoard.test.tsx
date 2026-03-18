@@ -14,7 +14,7 @@ vi.mock('../../hooks/useTaskKanban', () => ({
           project_id: 'proj-1',
           goal: 'Scheduled Task',
           skill: null,
-          model: 'gpt-4-turbo-preview',
+          model: 'gpt-5.3-codex',
           current_run_id: null,
           queue_status: 'scheduled',
           scheduled_at: null,
