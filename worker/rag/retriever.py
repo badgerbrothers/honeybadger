@@ -2,6 +2,10 @@
 from typing import Dict, List
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+try:
+    from db_models import DocumentChunk
+except ModuleNotFoundError:  # pragma: no cover - package-import fallback
+    from worker.db_models import DocumentChunk
 from .embeddings import EmbeddingService
 
 
@@ -52,8 +56,6 @@ class DocumentRetriever:
         threshold: float
     ) -> List[Dict]:
         """Search for similar chunks using cosine similarity."""
-        from backend.app.models.document_chunk import DocumentChunk
-
         # pgvector cosine distance: 1 - cosine_similarity
         # So similarity = 1 - distance
         query = select(

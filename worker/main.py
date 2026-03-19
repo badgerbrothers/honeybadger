@@ -9,7 +9,24 @@ import structlog
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 
-from backend.app.models.document_index_job import DocumentIndexJob, DocumentIndexStatus
+try:
+    from db_models import (
+        DocumentIndexJob,
+        DocumentIndexStatus,
+        SandboxSession,
+        Task,
+        TaskRun,
+        TaskStatus,
+    )
+except ModuleNotFoundError:  # pragma: no cover - package-import fallback
+    from worker.db_models import (
+        DocumentIndexJob,
+        DocumentIndexStatus,
+        SandboxSession,
+        Task,
+        TaskRun,
+        TaskStatus,
+    )
 try:
     from config import settings
     from orchestrator.agent import Agent
@@ -97,7 +114,6 @@ def build_system_prompt(skill_prompt: str | None, rag_context: str | None = None
 
 async def get_next_pending_task(session: AsyncSession):
     """Fetch and claim next PENDING TaskRun."""
-    from backend.app.models.task import TaskRun, TaskStatus
 
     # Query for PENDING tasks
     result = await session.execute(
@@ -304,8 +320,6 @@ async def execute_document_index_job(job_id: uuid.UUID, session: AsyncSession):
 async def execute_task_run(task_run_id: uuid.UUID, session: AsyncSession):
     """Execute a single TaskRun with sandbox and agent."""
     from sandbox.manager import SandboxManager
-    from backend.app.models.task import Task, TaskRun, TaskStatus
-    from backend.app.models.sandbox import SandboxSession
 
     task_logger = structlog.get_logger().bind(task_run_id=str(task_run_id))
     task_logger.info("task_execution_started")

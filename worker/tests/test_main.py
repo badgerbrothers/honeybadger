@@ -23,7 +23,7 @@ async def test_get_next_pending_task_returns_none_when_empty():
 async def test_get_next_pending_task_claims_task():
     """Test that get_next_pending_task claims a PENDING task."""
     from worker.main import get_next_pending_task
-    from backend.app.models.task import TaskRun, TaskStatus
+    from db_models import TaskRun, TaskStatus
 
     mock_task_run = Mock(spec=TaskRun)
     mock_task_run.id = uuid.uuid4()
@@ -45,7 +45,7 @@ async def test_get_next_pending_task_claims_task():
 async def test_execute_task_run_success():
     """Test successful task execution."""
     from worker.main import execute_task_run
-    from backend.app.models.task import Task, TaskRun, TaskStatus
+    from db_models import Task, TaskRun, TaskStatus
     task_run_id = uuid.uuid4()
     task_id = uuid.uuid4()
 
@@ -90,7 +90,8 @@ async def test_execute_task_run_success():
         mock_backend_client_cls.return_value = mock_backend_client
 
         # Mock model provider
-        with patch('worker.main.create_model_provider') as mock_model:
+        with patch('worker.main.settings.default_main_model', 'gpt-5.3-codex'), \
+             patch('worker.main.create_model_provider') as mock_model:
             mock_model.return_value = Mock()
 
             # Mock tools
@@ -107,13 +108,15 @@ async def test_execute_task_run_success():
 
                     assert mock_task_run.status == TaskStatus.COMPLETED
                     assert mock_sandbox.destroy.called
+                    _, kwargs = mock_model.call_args
+                    assert kwargs["model"] == "gpt-5.3-codex"
 
 
 @pytest.mark.asyncio
 async def test_execute_task_run_failure_updates_status():
     """Test that failures are properly recorded."""
     from worker.main import execute_task_run
-    from backend.app.models.task import Task, TaskRun, TaskStatus
+    from db_models import Task, TaskRun, TaskStatus
 
     task_run_id = uuid.uuid4()
     task_id = uuid.uuid4()
@@ -166,7 +169,7 @@ async def test_execute_task_run_failure_updates_status():
 async def test_get_next_pending_index_job_claims_job():
     """Test that get_next_pending_index_job claims a PENDING index job."""
     from worker.main import get_next_pending_index_job
-    from backend.app.models.document_index_job import DocumentIndexStatus
+    from db_models import DocumentIndexStatus
 
     mock_job = Mock()
     mock_job.id = uuid.uuid4()
@@ -188,7 +191,7 @@ async def test_get_next_pending_index_job_claims_job():
 async def test_execute_document_index_job_success():
     """Document index job should download, index and mark job completed."""
     from worker.main import execute_document_index_job
-    from backend.app.models.document_index_job import DocumentIndexStatus
+    from db_models import DocumentIndexStatus
 
     job_id = uuid.uuid4()
     project_id = uuid.uuid4()
@@ -229,7 +232,7 @@ async def test_execute_document_index_job_success():
 async def test_execute_document_index_job_fails_without_openai_key():
     """Document index job should fail fast when OPENAI_API_KEY is missing."""
     from worker.main import execute_document_index_job
-    from backend.app.models.document_index_job import DocumentIndexStatus
+    from db_models import DocumentIndexStatus
 
     job_id = uuid.uuid4()
     project_id = uuid.uuid4()

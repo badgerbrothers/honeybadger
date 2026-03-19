@@ -3,6 +3,10 @@ from pathlib import Path
 from typing import Dict, List
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import delete, text
+try:
+    from db_models import DocumentChunk
+except ModuleNotFoundError:  # pragma: no cover - package-import fallback
+    from worker.db_models import DocumentChunk
 from .embeddings import EmbeddingService
 from .chunker import chunk_text
 from .semantic_chunker import SemanticChunker
@@ -89,8 +93,6 @@ class DocumentIndexer:
         self, project_id: str, file_path: str, chunks: List[Dict]
     ) -> None:
         """Store chunks in database."""
-        from backend.app.models.document_chunk import DocumentChunk
-
         await self.db_session.execute(
             delete(DocumentChunk).where(
                 DocumentChunk.project_id == project_id,
