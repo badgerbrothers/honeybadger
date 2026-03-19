@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>任务队列看板 (多行) - Manus Clone</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            display: flex;
+            height: 100vh;
+            background-color: #fcfcfc;
+            color: #1a1a1a;
+            overflow: hidden;
+        }
+
+        /* 侧边栏 */
+        .sidebar {
+            width: 280px;
+            background-color: #f7f7f8;
+            border-right: 1px solid #e5e5e5;
+            display: flex;
+            flex-direction: column;
+            padding: 1rem;
+            flex-shrink: 0;
+        }
+        .sidebar-header { margin-bottom: 2rem; font-size: 1.25rem; font-weight: 700; padding: 0 0.5rem; }
+        .nav-item { padding: 0.75rem 1rem; border-radius: 0.5rem; cursor: pointer; color: #4a4a4a; font-size: 0.95rem; display: flex; align-items: center; gap: 0.75rem; transition: all 0.2s; margin-bottom: 0.25rem; text-decoration: none; }
+        .nav-item:hover { background-color: #e5e5e5; color: #1a1a1a; }
+        .nav-item.active { background-color: #ffffff; color: #1a1a1a; font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+
+        /* 主内容区 */
+        .main-content {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            background-color: #f4f4f5;
+        }
+        .header {
+            height: 70px;
+            padding: 0 2rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background-color: #ffffff;
+            border-bottom: 1px solid #e5e5e5;
+            flex-shrink: 0;
+        }
+        .header-title { font-size: 1.25rem; font-weight: 600; }
+        
+        .btn { padding: 0.5rem 1rem; border-radius: 0.5rem; font-size: 0.9rem; font-weight: 500; cursor: pointer; transition: all 0.2s; border: none; }
+        .btn-primary { background-color: #1a1a1a; color: #ffffff; }
+        .btn-primary:hover { background-color: #3f3f46; }
+
+        /* 看板区域 (两行布局) */
+        .kanban-board {
+            flex-grow: 1;
+            padding: 1.5rem 2rem;
+            display: flex;
+            flex-direction: column; /* 改为垂直排列，容纳两行 */
+            gap: 2rem; /* 两行之间的间距 */
+            overflow-y: auto; /* 允许整体垂直滚动 */
+        }
+
+        /* 每一行的容器 */
+        .kanban-row {
+            display: flex;
+            gap: 1.5rem;
+            min-height: 400px; /* 给每行一个最小高度 */
+            flex-shrink: 0; /* 防止行被压缩 */
+        }
+
+        /* 看板列 */
+        .kanban-column {
+            background-color: #ffffff;
+            border-radius: 0.75rem;
+            border: 1px solid #e5e5e5;
+            flex: 1; /* 均匀瓜分行的宽度 */
+            min-width: 280px; /* 防止列太窄 */
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+        }
+
+        .column-header {
+            padding: 1rem;
+            border-bottom: 1px solid #f4f4f5;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-weight: 600;
+        }
+        .column-count {
+            background-color: #f4f4f5;
+            color: #71717a;
+            padding: 0.15rem 0.5rem;
+            border-radius: 1rem;
+            font-size: 0.8rem;
+        }
+
+        /* 卡片列表 */
+        .column-content {
+            padding: 1rem;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            flex-grow: 1;
+        }
+
+        /* 任务卡片 */
+        .task-card {
+            background-color: #ffffff;
+            border: 1px solid #e5e5e5;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            cursor: grab;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .task-card:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            transform: translateY(-2px);
+        }
+
+        .task-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 0.75rem;
+        }
+        .task-id {
+            font-size: 0.75rem;
+            color: #a1a1aa;
+            font-family: monospace;
+        }
+
+        .task-title {
+            font-size: 0.95rem;
+            font-weight: 600;
+            line-height: 1.4;
+            color: #1a1a1a;
+            margin-bottom: 0.75rem;
+        }
+
+        .task-tags {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            margin-bottom: 1rem;
+        }
+        .tag {
+            font-size: 0.7rem;
+            padding: 0.15rem 0.4rem;
+            border-radius: 0.25rem;
+            font-weight: 500;
+        }
+        .tag-blue { background-color: #dbeafe; color: #1e40af; }
+        .tag-purple { background-color: #e0e7ff; color: #4338ca; }
+        .tag-green { background-color: #dcfce7; color: #166534; }
+        .tag-gray { background-color: #f4f4f5; color: #4a4a4a; }
+
+        .task-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-top: 1px solid #f4f4f5;
+            padding-top: 0.75rem;
+        }
+
+        .agent-info {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            font-size: 0.8rem;
+            color: #71717a;
+        }
+        .agent-avatar {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background-color: #1a1a1a;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.6rem;
+            font-weight: bold;
+        }
+
+        /* 进度条 */
+        .progress-bar {
+            width: 100%;
+            height: 4px;
+            background-color: #e5e5e5;
+            border-radius: 2px;
+            margin-top: 0.5rem;
+            overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%;
+            background-color: #2563eb;
+            border-radius: 2px;
+        }
+
+        svg { width: 1.25rem; height: 1.25rem; }
+    </style>
+</head>
+<body>
+
+    <aside class="sidebar">
+        <div class="sidebar-header">Manus 工作台</div>
+        <nav>
+            <a href="manus_clone.html" class="nav-item">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path></svg>
+                会话
+            </a>
+            <a href="#" class="nav-item active">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path></svg>
+                任务队列看板
+            </a>
+        </nav>
+    </aside>
+
+    <main class="main-content">
+        <header class="header">
+            <h1 class="header-title">任务队列 (Task Queue)</h1>
+            <div style="display: flex; gap: 1rem;">
+                <button class="btn" style="background: white; border: 1px solid #d4d4d8;">暂停调度</button>
+                <button class="btn btn-primary">+ 新建任务</button>
+            </div>
+        </header>
+
+        <div class="kanban-board">
+            
+            <!-- 第一行：Scheduled 和 Queue -->
+            <div class="kanban-row">
+                
+                <!-- Scheduled 列 -->
+                <div class="kanban-column">
+                    <div class="column-header">
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                            <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background-color: #8b5cf6;"></span>
+                            计划中 (Scheduled)
+                        </div>
+                        <span class="column-count">1</span>
+                    </div>
+                    <div class="column-content">
+                        <div class="task-card" style="border-left: 3px solid #8b5cf6;">
+                            <div class="task-header">
+                                <span class="task-id">#TSK-895</span>
+                            </div>
+                            <div class="task-title">定时每周一生成数据报表</div>
+                            <div class="task-tags">
+                                <span class="tag tag-purple">定时任务</span>
+                            </div>
+                            <div class="task-footer">
+                                <div class="agent-info">
+                                    <div class="agent-avatar" style="background-color: #8b5cf6;">M</div>
+                                    Data Agent
+                                </div>
+                                <span style="font-size: 0.75rem; color: #a1a1aa;">下周一 08:00 执行</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Queue 列 -->
+                <div class="kanban-column">
+                    <div class="column-header">
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                            <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background-color: #a1a1aa;"></span>
+                            排队中 (Queue)
+                        </div>
+                        <span class="column-count">2</span>
+                    </div>
+                    <div class="column-content">
+                        <div class="task-card">
+                            <div class="task-header">
+                                <span class="task-id">#TSK-892</span>
+                            </div>
+                            <div class="task-title">批量格式化 Markdown 文档</div>
+                            <div class="task-tags">
+                                <span class="tag tag-gray">文档处理</span>
+                            </div>
+                            <div class="task-footer">
+                                <div class="agent-info">
+                                    <div class="agent-avatar" style="background-color: #64748b;">M</div>
+                                    Manus 默认
+                                </div>
+                                <span style="font-size: 0.75rem; color: #a1a1aa;">等待调度</span>
+                            </div>
+                        </div>
+
+                        <div class="task-card">
+                            <div class="task-header">
+                                <span class="task-id">#TSK-893</span>
+                            </div>
+                            <div class="task-title">爬取竞品网站定价页面</div>
+                            <div class="task-tags">
+                                <span class="tag tag-blue">Web Search</span>
+                            </div>
+                            <div class="task-footer">
+                                <div class="agent-info">
+                                    <div class="agent-avatar" style="background-color: #64748b;">M</div>
+                                    Manus 默认
+                                </div>
+                                <span style="font-size: 0.75rem; color: #a1a1aa;">等待调度</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div> <!-- 第一行结束 -->
+
+            <!-- 第二行：In Progress 和 Done -->
+            <div class="kanban-row">
+                
+                <!-- In Progress 列 -->
+                <div class="kanban-column">
+                    <div class="column-header">
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                            <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background-color: #3b82f6; box-shadow: 0 0 0 2px #bfdbfe;"></span>
+                            执行中 (In Progress)
+                        </div>
+                        <span class="column-count">1</span>
+                    </div>
+                    <div class="column-content">
+                        <div class="task-card" style="border-left: 3px solid #3b82f6;">
+                            <div class="task-header">
+                                <span class="task-id">#TSK-890</span>
+                            </div>
+                            <div class="task-title">编写贪吃蛇游戏 (React + Canvas)</div>
+                            <div class="task-tags">
+                                <span class="tag tag-purple">前端开发</span>
+                                <span class="tag tag-blue">沙盒执行</span>
+                            </div>
+                            <div style="font-size: 0.8rem; color: #4a4a4a; margin-bottom: 0.5rem;">
+                                正在执行: 编写 index.html 和样式
+                            </div>
+                            <div class="progress-bar"><div class="progress-fill" style="width: 45%;"></div></div>
+                            <div class="task-footer" style="margin-top: 0.75rem; border-top: none; padding-top: 0;">
+                                <div class="agent-info">
+                                    <div class="agent-avatar" style="background-color: #3b82f6;">M</div>
+                                    Manus 默认
+                                </div>
+                                <span style="font-size: 0.75rem; color: #3b82f6;">已运行 2m 14s</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Done 列 -->
+                <div class="kanban-column">
+                    <div class="column-header">
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                            <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background-color: #10b981;"></span>
+                            已完成 (Done)
+                        </div>
+                        <span class="column-count">1</span>
+                    </div>
+                    <div class="column-content">
+                        <div class="task-card" style="opacity: 0.7;">
+                            <div class="task-header">
+                                <span class="task-id">#TSK-881</span>
+                            </div>
+                            <div class="task-title" style="text-decoration: line-through; color: #71717a;">生成项目架构图</div>
+                            <div class="task-tags">
+                                <span class="tag tag-green">成功</span>
+                            </div>
+                            <div class="task-footer">
+                                <a href="#" style="font-size: 0.8rem; color: #2563eb; text-decoration: none;">查看结果</a>
+                                <span style="font-size: 0.75rem; color: #a1a1aa;">昨天</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div> <!-- 第二行结束 -->
+
+        </div>
+    </main>
+
+</body>
+</html>

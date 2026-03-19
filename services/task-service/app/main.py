@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.database import init_db
 from app.routers import artifacts, runs, tasks
 from app.services.queue_service import queue_service
+from app.services.task_scheduler import task_scheduler
 
 app = FastAPI(title="Badgers Task Service")
 
@@ -16,11 +17,13 @@ async def startup_event():
 
     await init_db()
     await queue_service.connect()
+    await task_scheduler.start()
 
 
 @app.on_event("shutdown")
 async def shutdown_event():
     """Release external clients."""
+    await task_scheduler.stop()
     await queue_service.close()
 
 

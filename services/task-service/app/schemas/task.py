@@ -2,7 +2,7 @@
 from pydantic import BaseModel, ConfigDict, Field
 from datetime import datetime
 import uuid
-from app.models.task import TaskStatus
+from app.models.task import QueueStatus, TaskStatus
 
 class TaskCreate(BaseModel):
     """Schema for creating a task."""
@@ -11,6 +11,9 @@ class TaskCreate(BaseModel):
     goal: str = Field(..., min_length=1)
     skill: str | None = Field(None, max_length=100)
     model: str | None = Field(None, max_length=100)
+    scheduled_at: datetime | None = None
+    priority: int = Field(default=0, ge=0, le=100)
+    assigned_agent: str | None = Field(None, max_length=100)
 
 class TaskUpdate(BaseModel):
     """Schema for updating a task."""
@@ -27,6 +30,10 @@ class TaskResponse(BaseModel):
     skill: str | None
     model: str
     current_run_id: uuid.UUID | None
+    queue_status: QueueStatus
+    scheduled_at: datetime | None
+    priority: int
+    assigned_agent: str | None
     created_at: datetime
     updated_at: datetime
 
