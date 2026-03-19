@@ -7,6 +7,7 @@ def test_get_provider_for_openai_models():
     """Test get_provider_for_model with OpenAI models."""
     assert get_provider_for_model("gpt-4") == ProviderType.OPENAI
     assert get_provider_for_model("gpt-3.5-turbo") == ProviderType.OPENAI
+    assert get_provider_for_model("gpt-5.3-codex") == ProviderType.OPENAI
 
 def test_get_provider_for_anthropic_models():
     """Test get_provider_for_model with Anthropic models."""
@@ -16,6 +17,7 @@ def test_get_provider_for_anthropic_models():
 def test_is_model_supported():
     """Test is_model_supported for valid/invalid models."""
     assert is_model_supported("gpt-4") is True
+    assert is_model_supported("gpt-5.3-codex") is True
     assert is_model_supported("unknown-model") is False
 
 def test_case_insensitive_matching():

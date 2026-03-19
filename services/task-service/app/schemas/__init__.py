@@ -22,6 +22,8 @@ from .task import (
 )
 from .sandbox import SandboxSessionResponse
 from .artifact import ArtifactCreate, ArtifactResponse
+from .task_queue import TaskKanbanResponse
+from .model_catalog import ModelCatalogResponse
 
 __all__ = [
     "ProjectCreate",
@@ -42,4 +44,6 @@ __all__ = [
     "SandboxSessionResponse",
     "ArtifactCreate",
     "ArtifactResponse",
+    "TaskKanbanResponse",
+    "ModelCatalogResponse",
 ]

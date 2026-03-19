@@ -13,6 +13,7 @@ def test_route_openai_models(router):
     """Test route() returns correct provider for OpenAI models."""
     assert router.route("gpt-4") == ProviderType.OPENAI
     assert router.route("gpt-3.5-turbo") == ProviderType.OPENAI
+    assert router.route("gpt-5.3-codex") == ProviderType.OPENAI
 
 def test_route_anthropic_models(router):
     """Test route() returns correct provider for Anthropic models."""

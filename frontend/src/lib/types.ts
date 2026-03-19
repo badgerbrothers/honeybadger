@@ -85,6 +85,11 @@ export interface CreateTaskInput {
   assigned_agent?: string | null;
 }
 
+export interface ModelCatalog {
+  default_model: string;
+  supported_models: string[];
+}
+
 export interface Artifact {
   id: string;
   project_id: string;

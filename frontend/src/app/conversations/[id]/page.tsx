@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Container } from '@/components/layout/Container';
 import { Card } from '@/components/ui/Card';
@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/Button';
 import { createMessage } from '@/features/conversations/api/conversations';
 import { useConversation } from '@/features/conversations/hooks/useConversation';
 import { useConversationMessages } from '@/features/conversations/hooks/useConversationMessages';
+import { useModelCatalog } from '@/features/tasks/hooks/useModelCatalog';
 import { createTask, createTaskRun, fetchTasks, retryTaskRun } from '@/features/tasks/api/tasks';
 
 export default function ConversationDetailPage() {
@@ -21,15 +22,24 @@ export default function ConversationDetailPage() {
   const [messageContent, setMessageContent] = useState('');
   const [goal, setGoal] = useState('');
   const [skill, setSkill] = useState('');
-  const [model, setModel] = useState('gpt-5.3-codex');
+  const [model, setModel] = useState('');
+  const modelInitializedRef = useRef(false);
 
   const { data: conversation, isLoading: isConversationLoading } = useConversation(conversationId);
   const { data: messages, isLoading: isMessagesLoading } = useConversationMessages(conversationId);
+  const { data: modelCatalog, isLoading: isModelCatalogLoading } = useModelCatalog();
   const { data: tasks, isLoading: isTasksLoading } = useQuery({
     queryKey: ['tasksByConversation', conversationId],
     queryFn: () => fetchTasks({ conversationId: conversationId! }),
     enabled: !!conversationId,
   });
+
+  useEffect(() => {
+    if (!modelInitializedRef.current && modelCatalog?.default_model) {
+      setModel(modelCatalog.default_model);
+      modelInitializedRef.current = true;
+    }
+  }, [modelCatalog]);
 
   const { mutate: createMessageMutation, isPending: isCreatingMessage } = useMutation({
     mutationFn: (content: string) =>
@@ -173,12 +183,23 @@ export default function ConversationDetailPage() {
                 value={skill}
                 onChange={(event) => setSkill(event.target.value)}
               />
-              <input
+              <select
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
-                placeholder="Model (optional)"
                 value={model}
                 onChange={(event) => setModel(event.target.value)}
-              />
+                disabled={isModelCatalogLoading || !modelCatalog}
+              >
+                {!modelCatalog && (
+                  <option value="">
+                    {isModelCatalogLoading ? 'Loading models...' : 'Default model (server)'}
+                  </option>
+                )}
+                {modelCatalog?.supported_models.map((supportedModel) => (
+                  <option key={supportedModel} value={supportedModel}>
+                    {supportedModel}
+                  </option>
+                ))}
+              </select>
               <Button type="submit" disabled={isCreatingTask}>
                 {isCreatingTask ? 'Creating task...' : 'Create Task'}
               </Button>

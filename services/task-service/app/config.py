@@ -18,6 +18,21 @@ class Settings(BaseSettings):
 
     # OpenAI API
     openai_api_key: str = ""
+    default_main_model: str = "gpt-5.3-codex"
+    supported_models_raw: str = Field(
+        default=(
+            "gpt-5.3-codex,"
+            "gpt-4-turbo-preview,"
+            "gpt-4-turbo,"
+            "gpt-4,"
+            "gpt-3.5-turbo,"
+            "gpt-3.5-turbo-16k,"
+            "claude-3-opus-20240229,"
+            "claude-3-sonnet-20240229,"
+            "claude-3-haiku-20240307"
+        ),
+        validation_alias=AliasChoices("SUPPORTED_MODELS"),
+    )
 
     # RAG Configuration
     embedding_model: str = "text-embedding-3-small"
@@ -55,6 +70,16 @@ class Settings(BaseSettings):
             f"amqp://{self.rabbitmq_user}:{self.rabbitmq_password}"
             f"@{self.rabbitmq_host}:{self.rabbitmq_port}/"
         )
+
+    @property
+    def supported_models(self) -> list[str]:
+        """Return normalized supported model names from env config."""
+        models: list[str] = []
+        for raw_value in self.supported_models_raw.split(","):
+            normalized = raw_value.strip()
+            if normalized and normalized not in models:
+                models.append(normalized)
+        return models
 
 
 settings = Settings()
