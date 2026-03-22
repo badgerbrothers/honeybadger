@@ -41,3 +41,7 @@ Thumbs.db
 
 # Docker
 *.pid
+
+# Java / Maven (auth-service build outputs + local test jars)
+services/auth-service/target/
+temp_auth_app*.jar
