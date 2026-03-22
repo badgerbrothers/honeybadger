@@ -167,7 +167,7 @@ The MVP validates whether a single-agent execution model can reliably complete r
 
 ### High-Level Architecture
 
-**Modular Monolith Approach:**
+**Legacy (outdated) modular monolith concept:**
 - Single codebase with clear module boundaries
 - Control plane (API) separated from execution plane (workers)
 - Async task execution with queue-based orchestration
@@ -189,7 +189,7 @@ The MVP validates whether a single-agent execution model can reliably complete r
 │  - Artifact API                              │
 │  - WebSocket/SSE event streaming             │
 └──────┬──────────────────────────────────────┘
-       │ Redis Queue
+       │ RabbitMQ Queue
 ┌──────▼──────────────────────────────────────┐
 │      Python Worker (Execution Plane)         │
 │  - Agent Orchestrator                        │
@@ -596,8 +596,8 @@ Detailed instructions for the agent...
 - **Alembic** - Database migrations
 
 **Task Queue:**
-- **Redis 7+** - Message broker and cache
-- **Celery** or **ARQ** - Async task queue (ARQ preferred for simpler async/await)
+- **RabbitMQ (baseline)** - Message broker for TaskRuns and indexing jobs
+- **aio-pika** - RabbitMQ client used by services/workers
 
 **Object Storage:**
 - **MinIO** - S3-compatible object storage for artifacts
@@ -620,7 +620,7 @@ Detailed instructions for the agent...
 - **structlog** - Structured logging
 - **httpx** - Async HTTP client
 - **python-multipart** - File upload support
-- **python-jose** - JWT handling (future auth)
+- **PyJWT** - JWT validation in Python services
 
 ### Frontend
 
@@ -674,9 +674,9 @@ Detailed instructions for the agent...
 
 ### Authentication & Authorization
 
-**MVP Approach:**
-- **No authentication** - Single-user local deployment
-- **Future:** JWT-based authentication with user accounts
+**Current Approach (code baseline):**
+- JWT Bearer authentication for user-facing APIs (issued by auth-service)
+- Internal worker callbacks can be protected via X-Internal-Service-Token
 
 **Sandbox Security:**
 - Each task run executes in isolated Docker container
@@ -768,11 +768,11 @@ BACKEND_URL=http://localhost:8000
 
 ### Base URL
 ```
-http://localhost:8000/api/v1
+http://localhost/api
 ```
 
 ### Authentication
-MVP: No authentication required. Future: Bearer token in Authorization header.
+User-facing endpoints require `Authorization: Bearer <access_token>` (JWT issued by `auth-service`).
 
 ### Core Endpoints
 
@@ -1023,8 +1023,8 @@ MVP: No authentication required. Future: Bearer token in Authorization header.
 
 #### Run Events (WebSocket)
 
-**WS /runs/{run_id}/events**
-- Real-time execution events for specific run
+**WS /api/runs/{run_id}/stream**
+- Real-time execution events for a run (fan-out from task-service)
 - Events:
 ```json
 {
@@ -1234,8 +1234,8 @@ To validate the above hypotheses, the MVP must include:
 - ✅ Docker sandbox manager with lifecycle management
 - ✅ Basic agent orchestrator with plan-execute loop
 - ✅ File tool implementation (list, read, write)
-- ✅ Redis task queue setup
-- ✅ Worker process that consumes tasks from queue
+- ✅ RabbitMQ task queue setup
+- ✅ Worker process(es) that consume queues and execute runs in per-run sandboxes
 
 **Validation:**
 - Can create project via API

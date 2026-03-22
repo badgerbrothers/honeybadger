@@ -1,122 +1,68 @@
 # Badgers MVP
 
-An AI-powered task execution platform that enables users to delegate complex, multi-step workflows to an autonomous agent with isolated execution environments.
+Badgers is an AI task execution platform: users create tasks, workers execute them in isolated Docker sandboxes, and outputs are persisted as artifacts.
 
 ## Tech Stack
 
-- **Backend**: Python 3.11+, FastAPI, SQLAlchemy, PostgreSQL, structlog
-- **Frontend**: Next.js 14+, React 18, TypeScript, Tailwind CSS, TanStack Query
-- **Task Queue**: Redis, ARQ/Celery
-- **Sandbox**: Docker, Playwright
-- **Storage**: MinIO (S3-compatible), pgvector
-- **AI/ML**: OpenAI SDK, Anthropic SDK
+- **Backend services**: Python 3.11+, FastAPI, SQLAlchemy, PostgreSQL (pgvector), structlog
+- **Frontend**: Next.js 14+, React 18, TypeScript
+- **Auth**: Spring Boot (JWT)
+- **Task queue**: RabbitMQ (baseline)
+- **Sandbox**: Docker
+- **Object storage**: MinIO (S3-compatible)
+- **AI/ML**: OpenAI-compatible APIs, Anthropic APIs
 
-## Project Structure
+## Project Structure (Current Baseline)
 
 ```
 badgers-mvp/
-├── backend/
-│   ├── app/
-│   │   ├── main.py           # FastAPI entry point
-│   │   ├── config.py         # Configuration management
-│   │   ├── database.py       # PostgreSQL connection
-│   │   ├── models/           # SQLAlchemy models
-│   │   ├── schemas/          # Pydantic schemas
-│   │   ├── routers/          # API endpoints
-│   │   │   ├── projects.py
-│   │   │   ├── conversations.py
-│   │   │   ├── tasks.py
-│   │   │   └── artifacts.py
-│   │   └── services/         # Business logic
-│   └── pyproject.toml
-├── worker/
-│   ├── orchestrator/         # Agent orchestration
-│   ├── tools/                # Tool implementations
-│   ├── sandbox/              # Sandbox management
-│   ├── models/               # Model abstraction
-│   ├── rag/                  # RAG system
-│   ├── memory/               # Memory system
-│   └── skills/               # Skill templates
-├── frontend/
-│   ├── src/
-│   │   ├── app/              # Next.js App Router
-│   │   ├── components/       # React components
-│   │   ├── features/         # Feature modules
-│   │   │   ├── projects/
-│   │   │   ├── conversations/
-│   │   │   ├── tasks/
-│   │   │   └── artifacts/
-│   │   └── lib/              # Utilities, API client
-│   └── package.json
-├── shared/                   # Shared utilities
-└── docker/                   # Docker configurations
+  services/                 # Domain-split services (runtime baseline)
+    auth-service/           # Spring Boot auth (JWT)
+    project-service/        # Projects + conversations APIs
+    task-service/           # Tasks + runs + artifacts APIs
+    rag-service/            # Retrieval + indexing APIs
+    storage-service/        # Object storage proxy API (MinIO/S3)
+  worker/                   # Execution plane (RabbitMQ consumers + sandbox + agent)
+  frontend/                 # Next.js UI
+  nginx/                    # API gateway (single external API entry)
+  shared/                   # Shared schemas/models used across services/worker
+  docker/                   # Docker configs (including sandbox base image)
+
+Note: `backend/` still exists in the repo as legacy/compat code, but `docker-compose.yml` runs `services/*`.
 ```
 
 ## Commands
 
 ```bash
-# Backend
-cd backend && uv sync
-uv run uvicorn app.main:app --reload --port 8000
+# Full stack (recommended)
+docker compose up --build -d
 
-# Worker
-cd worker && uv sync
-uv run python -m worker.main
+# Manual start (run infra in compose, run apps locally)
+docker compose up -d postgres redis minio rabbitmq
 
-# Frontend
-cd frontend && npm install && npm run dev
+cd services/project-service
+uv sync
+uv run uvicorn app.main:app --reload --port 8001
 
-# Full Stack (Docker Compose)
-docker-compose up -d
+cd services/task-service
+uv sync
+uv run uvicorn app.main:app --reload --port 8002
 
-# Testing
-cd backend && uv run pytest tests/ -v
-cd frontend && npm run test
-npx playwright test
+cd services/rag-service
+uv sync
+uv run uvicorn app.main:app --reload --port 8003
+
+cd services/storage-service
+uv sync
+uv run uvicorn app.main:app --reload --port 8005
+
+cd worker
+uv sync
+uv run python -m worker.worker_taskrun
+uv run python -m worker.worker_indexjob
+
+cd frontend
+npm install
+npm run dev
 ```
-
-## Reference Documentation
-
-Read these documents when working on specific areas:
-
-| Document | When to Read |
-|----------|--------------|
-| `.claude/PRD.md` | Understanding requirements, features, architecture, API spec |
-| `docs/badgers-mvp-requirements.md` | Original detailed requirements (Chinese) |
-
-## Core Concepts
-
-### Architecture Flow
-```
-Conversation → Task → Run → Sandbox → Artifact → Project
-```
-
-- **Project**: Long-term workspace containing files and task outputs
-- **Conversation**: Chat interface for task initiation
-- **Task**: Goal-oriented unit of work (e.g., "research Tesla earnings")
-- **Run**: Single execution instance with isolated sandbox
-- **Sandbox**: Docker container where agent executes tools
-- **Artifact**: Generated output (report, code, screenshot)
-
-### Tool System
-
-Agent has access to these tools:
-- `browser.*` - Open, click, type, extract, screenshot
-- `file.*` - List, read, write files
-- `python.run` - Execute Python code
-- `web.fetch` - HTTP requests
-- `final.answer` - Submit task result
-
-### Skills
-
-Lightweight task templates defined in Markdown files (`worker/skills/*/SKILL.md`):
-- **research_report** - Web research and markdown report generation
-- **webpage** - HTML/CSS/JS code generation
-- **file_analysis** - Document analysis and insights
-
-Each skill defines:
-- System prompt to guide agent behavior
-- Allowed tools the agent can use
-- Output format specification
-- Example tasks
 
