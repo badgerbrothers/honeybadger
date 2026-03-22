@@ -1,5 +1,5 @@
-import { redirect } from 'next/navigation';
+import { ChatScreen } from "@/features/chat/ChatScreen";
 
 export default function HomePage() {
-  redirect('/projects');
+  return <ChatScreen />;
 }
