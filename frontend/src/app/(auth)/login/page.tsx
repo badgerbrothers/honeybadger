@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 
 import { AuthPage } from "@/features/auth/AuthPage";
 
@@ -7,6 +8,9 @@ export const metadata: Metadata = {
 };
 
 export default function LoginPage() {
-  return <AuthPage mode="login" />;
+  return (
+    <Suspense fallback={null}>
+      <AuthPage mode="login" />
+    </Suspense>
+  );
 }
-

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { useRag } from "./RagContext";
@@ -17,9 +18,13 @@ function isTextLike(mimeType: string, name: string) {
 }
 
 export function RagDetailPage({ ragId }: { ragId: string }) {
-  const { rags, selectRag, ragFilesByRag, activeFileIdByRag, selectFile } = useRag();
+  const { rags, selectRag, ragFilesByRag, activeFileIdByRag, selectFile, uploadFiles, bindRagToActiveProject } =
+    useRag();
   const [previewFileId, setPreviewFileId] = useState<string | null>(null);
   const uploadInputRef = useRef<HTMLInputElement | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [binding, setBinding] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     selectRag(ragId);
@@ -66,7 +71,12 @@ export function RagDetailPage({ ragId }: { ragId: string }) {
         <h1 className="manus-page-title" style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", fontSize: "1.25rem" }}>
           {rag.name}
         </h1>
-        <div style={{ color: "#71717a", fontSize: "0.9rem" }}>{files.length} files</div>
+        <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+          <div style={{ color: "#71717a", fontSize: "0.9rem" }}>{files.length} files</div>
+          <Link className="manus-btn" href="/conversation" aria-label="Back to conversation" title="Back to conversation">
+            返回会话
+          </Link>
+        </div>
       </header>
 
       <div className="manus-content-area fluid">
@@ -84,8 +94,28 @@ export function RagDetailPage({ ragId }: { ragId: string }) {
                 >
                   Upload
                 </button>
-                <button className="manus-btn" type="button" title="Refresh (mock)" aria-label="Refresh (mock)">
-                  Refresh
+                <button
+                  className="manus-btn"
+                  type="button"
+                  title="Bind to active project"
+                  aria-label="Bind to active project"
+                  disabled={binding === "saving"}
+                  onClick={async () => {
+                    setBinding("saving");
+                    setError(null);
+                    try {
+                      const result = await bindRagToActiveProject(ragId);
+                      if (!result) throw new Error("No active project selected in workspace");
+                      setBinding("saved");
+                      window.setTimeout(() => setBinding("idle"), 1500);
+                    } catch (e) {
+                      setBinding("error");
+                      setError(e instanceof Error ? e.message : "Bind failed");
+                      window.setTimeout(() => setBinding("idle"), 2500);
+                    }
+                  }}
+                >
+                  {binding === "saved" ? "Bound" : binding === "saving" ? "Binding..." : "Bind to project"}
                 </button>
               </div>
             </div>
@@ -95,13 +125,27 @@ export function RagDetailPage({ ragId }: { ragId: string }) {
                 type="file"
                 multiple
                 style={{ display: "none" }}
-                onChange={(event) => {
-                  // Local mock phase: only open system file picker for now.
-                  // Reset value so selecting the same file again still triggers onChange.
+                onChange={async (event) => {
+                  const picked = Array.from(event.currentTarget.files ?? []);
                   event.currentTarget.value = "";
+                  if (picked.length === 0) return;
+                  setUploading(true);
+                  setError(null);
+                  try {
+                    await uploadFiles(ragId, picked);
+                  } catch (e) {
+                    setError(e instanceof Error ? e.message : "Upload failed");
+                  } finally {
+                    setUploading(false);
+                  }
                 }}
               />
               <div className="rag-muted" style={{ marginBottom: "0.9rem" }}>{rag.description}</div>
+              {error ? (
+                <div style={{ marginBottom: "0.75rem", color: "#991b1b", fontSize: "0.9rem" }}>
+                  {error}
+                </div>
+              ) : null}
               <div className="rag-overview-kv">
                 <div className="rag-overview-k">Status</div>
                 <div className="rag-overview-v">{rag.status}</div>
@@ -110,6 +154,11 @@ export function RagDetailPage({ ragId }: { ragId: string }) {
                 <div className="rag-overview-k">Updated</div>
                 <div className="rag-overview-v">{new Date(rag.updatedAt).toLocaleString()}</div>
               </div>
+              {uploading ? (
+                <div className="rag-muted" style={{ marginTop: "0.75rem" }}>
+                  Uploading...
+                </div>
+              ) : null}
             </div>
           </div>
 
@@ -199,7 +248,10 @@ export function RagDetailPage({ ragId }: { ragId: string }) {
             </div>
             <div className="rag-modal-body">
               {isTextLike(previewFile.mimeType, previewFile.name) ? (
-                <pre className="rag-preview-pre">{previewFile.previewText ?? "No preview text in mock."}</pre>
+                <pre className="rag-preview-pre">
+                  Preview is not implemented for server-backed files yet. Storage path:{" "}
+                  {previewFile.path}
+                </pre>
               ) : (
                 <div className="rag-muted">
                   This file type is not previewed in the UI right now. Path:{" "}

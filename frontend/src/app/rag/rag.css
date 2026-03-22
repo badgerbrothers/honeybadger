@@ -31,11 +31,6 @@
   color: #a1a1aa;
 }
 
-.rag-sidebar-actions {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-}
 
 .rag-icon-btn {
   width: 32px;

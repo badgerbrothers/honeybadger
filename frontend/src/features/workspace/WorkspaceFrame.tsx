@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
+import { RequireAuth } from "@/lib/auth/RequireAuth";
+
 import { WorkspaceProvider, useWorkspace } from "./WorkspaceContext";
 
 type MenuTarget = { kind: "project" | "conversation"; id: string } | null;
@@ -312,8 +314,10 @@ function WorkspaceChrome({ children }: { children: ReactNode }) {
 
 export function WorkspaceFrame({ children }: { children: ReactNode }) {
   return (
-    <WorkspaceProvider>
-      <WorkspaceChrome>{children}</WorkspaceChrome>
-    </WorkspaceProvider>
+    <RequireAuth>
+      <WorkspaceProvider>
+        <WorkspaceChrome>{children}</WorkspaceChrome>
+      </WorkspaceProvider>
+    </RequireAuth>
   );
 }

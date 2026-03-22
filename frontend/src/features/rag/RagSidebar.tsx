@@ -31,34 +31,22 @@ export function RagSidebar() {
     <aside className="manus-sidebar rag-sidebar" aria-label="RAG list">
       <div className="rag-sidebar-top">
         <div className="rag-sidebar-title">RAG</div>
-        <div className="rag-sidebar-actions">
-          <Link
-            href="/conversation"
-            className="rag-icon-btn"
-            title="Back to conversation"
-            aria-label="Back to conversation"
-          >
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7M22 12H9" />
-            </svg>
-          </Link>
-          <button
-            type="button"
-            className="rag-icon-btn"
-            title="Create RAG"
-            aria-label="Create RAG"
-            onClick={() => {
-              const name = window.prompt("Create RAG name", "New RAG")?.trim();
-              if (!name) return;
-              const created = createRag(name);
-              router.push(`/rag/${created.id}`);
-            }}
-          >
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 5v14m7-7H5" />
-            </svg>
-          </button>
-        </div>
+        <button
+          type="button"
+          className="rag-icon-btn"
+          title="Create RAG"
+          aria-label="Create RAG"
+          onClick={async () => {
+            const name = window.prompt("Create RAG name", "New RAG")?.trim();
+            if (!name) return;
+            const created = await createRag(name);
+            router.push(`/rag/${created.id}`);
+          }}
+        >
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 5v14m7-7H5" />
+          </svg>
+        </button>
       </div>
 
       <div className="rag-search">

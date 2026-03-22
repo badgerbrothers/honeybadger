@@ -1,8 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 
+import { projectsApi, tasksApi } from "@/lib/api/endpoints";
 import { useWorkspace } from "@/features/workspace/WorkspaceContext";
 
 const suggestions = [
@@ -12,23 +15,48 @@ const suggestions = [
 ];
 
 export default function ConversationPage() {
-  const { activeConversation, sendMessage, messageDraft, setMessageDraft } =
-    useWorkspace();
+  const router = useRouter();
+  const {
+    activeProjectId,
+    activeConversation,
+    sendMessage,
+    messageDraft,
+    setMessageDraft,
+  } = useWorkspace();
 
   const messages = activeConversation?.messages ?? [];
-
   const empty = messages.length === 0;
   const canSend = messageDraft.trim().length > 0;
 
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const modelBtnRef = useRef<HTMLButtonElement | null>(null);
   const ragBtnRef = useRef<HTMLButtonElement | null>(null);
+  const uploadInputRef = useRef<HTMLInputElement | null>(null);
+
   const [modelMenuOpen, setModelMenuOpen] = useState(false);
   const [ragMenuOpen, setRagMenuOpen] = useState(false);
-  const [models, setModels] = useState<string[]>(["GPT-5", "GPT-4.1", "o4-mini"]);
-  const [ragSources, setRagSources] = useState<string[]>(["Knowledge Base", "Project Files", "Web Search (hybrid)"]);
-  const [selectedModel, setSelectedModel] = useState("Model");
+  const [ragSources, setRagSources] = useState<string[]>([
+    "Project Files",
+    "RAG Collection",
+    "Web Search (hybrid)",
+  ]);
+  const [selectedModel, setSelectedModel] = useState<string>("Model");
   const [dropdownPosition, setDropdownPosition] = useState<{ left: number; top: number } | null>(null);
+  const [sending, setSending] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const modelCatalogQuery = useQuery({
+    queryKey: ["modelCatalog"],
+    queryFn: tasksApi.models,
+  });
+
+  useEffect(() => {
+    if (!modelCatalogQuery.data) return;
+    setSelectedModel((prev) => (prev === "Model" ? modelCatalogQuery.data.default_model : prev));
+  }, [modelCatalogQuery.data]);
+
+  const models = modelCatalogQuery.data?.supported_models ?? [];
 
   const placeholder = useMemo(() => {
     return activeConversation ? "Message..." : "Create a conversation to start";
@@ -87,6 +115,20 @@ export default function ConversationPage() {
     };
   }, []);
 
+  const doSend = async () => {
+    if (!canSend || sending) return;
+    setSending(true);
+    setError(null);
+    try {
+      const res = await sendMessage(messageDraft, { model: selectedModel });
+      if (res?.runId) router.push(`/runs/${res.runId}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Send failed");
+    } finally {
+      setSending(false);
+    }
+  };
+
   return (
     <main className="main-content">
       <div className="top-bar">
@@ -107,7 +149,6 @@ export default function ConversationPage() {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4h7v7H4V4zm9 0h7v4h-7V4zM4 13h7v7H4v-7zm9 6h7v-11h-7v11z" />
           </svg>
         </Link>
-
       </div>
 
       <div className="welcome-center">
@@ -170,14 +211,49 @@ export default function ConversationPage() {
               onKeyDown={(event) => {
                 if (event.key === "Enter" && !event.shiftKey) {
                   event.preventDefault();
-                  if (canSend) sendMessage(messageDraft);
+                  void doSend();
                 }
               }}
             />
 
+            {error ? (
+              <div style={{ padding: "0.5rem 0.75rem", color: "#991b1b", fontSize: "0.9rem" }}>
+                {error}
+              </div>
+            ) : null}
+
             <div className="input-toolbar">
               <div className="tools-left">
-                <button className="tool-btn" type="button" title="Add attachment" aria-label="Add attachment">
+                <input
+                  ref={uploadInputRef}
+                  type="file"
+                  style={{ display: "none" }}
+                  onChange={async (event) => {
+                    const files = Array.from(event.currentTarget.files ?? []);
+                    event.currentTarget.value = "";
+                    if (!activeProjectId || files.length === 0) return;
+                    setUploading(true);
+                    setError(null);
+                    try {
+                      // Upload one by one to keep it simple and show deterministic behavior.
+                      for (const f of files) {
+                        await projectsApi.uploadFile(activeProjectId, f);
+                      }
+                    } catch (err) {
+                      setError(err instanceof Error ? err.message : "Upload failed");
+                    } finally {
+                      setUploading(false);
+                    }
+                  }}
+                />
+                <button
+                  className={`tool-btn ${uploading ? "active" : ""}`}
+                  type="button"
+                  title="Add attachment"
+                  aria-label="Add attachment"
+                  onClick={() => uploadInputRef.current?.click()}
+                  disabled={!activeProjectId || uploading}
+                >
                   <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
                   </svg>
@@ -236,9 +312,8 @@ export default function ConversationPage() {
                   title="Send message"
                   aria-label="Send message"
                   type="button"
-                  onClick={() => {
-                    if (canSend) sendMessage(messageDraft);
-                  }}
+                  onClick={() => void doSend()}
+                  disabled={!canSend || sending}
                 >
                   <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
@@ -269,8 +344,10 @@ export default function ConversationPage() {
               onClick={() => {
                 const label = window.prompt(modelMenuOpen ? "Add model" : "Add RAG source", "")?.trim();
                 if (!label) return;
-                if (modelMenuOpen) setModels((prev) => [label, ...prev]);
-                else setRagSources((prev) => [label, ...prev]);
+                if (modelMenuOpen) {
+                  // Models are backend-driven; allow local temporary add for exploration only.
+                  setSelectedModel(label);
+                } else setRagSources((prev) => [label, ...prev]);
               }}
             >
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true" style={{ width: 18, height: 18 }}>
@@ -299,3 +376,4 @@ export default function ConversationPage() {
     </main>
   );
 }
+

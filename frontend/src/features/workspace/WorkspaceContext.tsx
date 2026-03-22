@@ -2,24 +2,34 @@
 
 import {
   createContext,
+  useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
   type ReactNode,
 } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+
+import {
+  conversationsApi,
+  projectsApi,
+  tasksApi,
+} from "@/lib/api/endpoints";
+import type { ApiConversation, ApiMessage, ApiProject, ApiTask } from "@/lib/api/types";
 
 export type TaskStatus = "schedule" | "queue" | "inprogress" | "done";
 
 export interface Message {
   id: string;
-  role: "user" | "assistant";
+  role: "user" | "assistant" | "system";
   content: string;
   createdAt: string;
 }
 
 export interface Task {
-  id: string;
-  title: string;
+  id: string; // UUID
+  title: string; // derived from `goal`
   status: TaskStatus;
   tags: string[];
   agentLabel: string;
@@ -27,6 +37,7 @@ export interface Task {
   meta?: string;
   progress?: number;
   highlight?: "info" | "warn";
+  raw?: ApiTask;
 }
 
 export interface Conversation {
@@ -35,12 +46,20 @@ export interface Conversation {
   title: string;
   updatedAt: string;
   messages: Message[];
+  raw?: ApiConversation;
 }
 
 export interface Project {
   id: string;
   name: string;
   updatedAt: string;
+  activeRagCollectionId: string | null;
+  raw?: ApiProject;
+}
+
+interface SendMessageResult {
+  taskId: string;
+  runId: string;
 }
 
 interface WorkspaceState {
@@ -57,343 +76,375 @@ interface WorkspaceState {
   setMessageDraft: (value: string) => void;
 
   selectProject: (id: string) => void;
-  createProject: () => void;
-  renameProject: (id: string, name: string) => void;
-  deleteProject: (id: string) => void;
+  createProject: () => Promise<void>;
+  renameProject: (id: string, name: string) => Promise<void>;
+  deleteProject: (id: string) => Promise<void>;
 
   selectConversation: (id: string) => void;
-  createConversation: () => void;
-  renameConversation: (id: string, title: string) => void;
-  deleteConversation: (id: string) => void;
+  createConversation: () => Promise<void>;
+  renameConversation: (id: string, title: string) => Promise<void>;
+  deleteConversation: (id: string) => Promise<void>;
 
-  sendMessage: (content: string) => void;
+  sendMessage: (content: string, opts?: { model?: string | null }) => Promise<SendMessageResult | null>;
 
-  tasksByConversation: Record<string, Task[]>;
   activeTasks: Task[];
-  moveTask: (taskId: string, next: TaskStatus) => void;
-  createTask: (input: string | { title: string; tags?: string[]; meta?: string }) => void;
-  moveAllQueueToInProgress: () => void;
+  moveTask: (taskId: string, next: TaskStatus) => Promise<void>;
+  createTask: (input: string | { title: string; tags?: string[]; meta?: string }) => Promise<void>;
+  moveAllQueueToInProgress: () => Promise<void>;
 }
 
 const WorkspaceContext = createContext<WorkspaceState | null>(null);
 
-function nowIso() {
-  return new Date().toISOString();
+const LS_ACTIVE_PROJECT = "badgers.workspace.activeProjectId";
+const LS_ACTIVE_CONV_BY_PROJECT = "badgers.workspace.activeConversationIdByProject";
+
+function loadString(key: string): string | null {
+  if (typeof window === "undefined") return null;
+  return window.localStorage.getItem(key);
 }
 
-function uid(prefix: string) {
-  return `${prefix}-${Math.random().toString(16).slice(2)}-${Date.now()}`;
+function storeString(key: string, value: string | null) {
+  if (typeof window === "undefined") return;
+  if (!value) window.localStorage.removeItem(key);
+  else window.localStorage.setItem(key, value);
 }
 
-function sortConversations(items: Conversation[]) {
-  return [...items].sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt));
+function loadJson<T>(key: string): T | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(key);
+    if (!raw) return null;
+    return JSON.parse(raw) as T;
+  } catch {
+    return null;
+  }
 }
 
-function sortProjects(items: Project[]) {
-  return [...items].sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt));
+function storeJson(key: string, value: unknown) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(key, JSON.stringify(value));
+}
+
+function mapProject(p: ApiProject): Project {
+  return {
+    id: p.id,
+    name: p.name,
+    updatedAt: p.updated_at,
+    activeRagCollectionId: p.active_rag_collection_id,
+    raw: p,
+  };
+}
+
+function mapConversation(c: ApiConversation): Conversation {
+  return {
+    id: c.id,
+    projectId: c.project_id,
+    title: c.title,
+    updatedAt: c.updated_at,
+    messages: [],
+    raw: c,
+  };
+}
+
+function mapMessage(m: ApiMessage): Message {
+  return {
+    id: m.id,
+    role: m.role,
+    content: m.content,
+    createdAt: m.created_at,
+  };
+}
+
+function statusFromQueueStatus(queueStatus: string): TaskStatus {
+  if (queueStatus === "scheduled") return "schedule";
+  if (queueStatus === "queued") return "queue";
+  if (queueStatus === "in_progress") return "inprogress";
+  if (queueStatus === "done") return "done";
+  return "schedule";
+}
+
+function queueStatusFromStatus(status: TaskStatus) {
+  if (status === "schedule") return "scheduled" as const;
+  if (status === "queue") return "queued" as const;
+  if (status === "inprogress") return "in_progress" as const;
+  return "done" as const;
+}
+
+function agentInitials(name: string) {
+  const trimmed = name.trim();
+  if (!trimmed) return "?";
+  const parts = trimmed.split(/\s+/).filter(Boolean);
+  const first = parts[0]?.[0] ?? "?";
+  const second = parts.length > 1 ? (parts[1]?.[0] ?? "") : "";
+  return (first + second).toUpperCase();
+}
+
+function mapTask(t: ApiTask): Task {
+  const label = t.assigned_agent?.trim() || "Unassigned";
+  return {
+    id: t.id,
+    title: t.goal,
+    status: statusFromQueueStatus(t.queue_status),
+    tags: t.skill ? [t.skill] : [],
+    agentLabel: label,
+    agentInitials: agentInitials(label),
+    meta: t.model,
+    raw: t,
+  };
 }
 
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
-  const [messageDraft, setMessageDraft] = useState("");
-  const [projects, setProjects] = useState<Project[]>(() => {
-    const seed: Project[] = [
-      { id: "p-001", name: "Agent Work Platform", updatedAt: nowIso() },
-      { id: "p-002", name: "Personal Sandbox", updatedAt: nowIso() },
-      { id: "p-003", name: "Client Research", updatedAt: nowIso() },
-      { id: "p-004", name: "Ops Automation", updatedAt: nowIso() },
-    ];
-    return sortProjects(seed);
-  });
-  const [activeProjectId, setActiveProjectId] = useState<string | null>(() => "p-001");
-  const [conversations, setConversations] = useState<Conversation[]>(() => {
-    const seed: Conversation[] = [
-      { id: "c-001", projectId: "p-001", title: "Conversation 1", updatedAt: nowIso(), messages: [] },
-      { id: "c-002", projectId: "p-001", title: "Agent routing rules", updatedAt: nowIso(), messages: [] },
-      { id: "c-003", projectId: "p-001", title: "Tools + skills wiring", updatedAt: nowIso(), messages: [] },
-      { id: "c-101", projectId: "p-002", title: "Scratchpad", updatedAt: nowIso(), messages: [] },
-      { id: "c-201", projectId: "p-003", title: "Pricing notes", updatedAt: nowIso(), messages: [] },
-      { id: "c-301", projectId: "p-004", title: "Runbook tasks", updatedAt: nowIso(), messages: [] },
-    ];
-    return sortConversations(seed);
-  });
-  const [activeConversationId, setActiveConversationId] = useState<string | null>(() => "c-001");
-  const [lastConversationByProject, setLastConversationByProject] = useState<Record<string, string>>(() => ({ "p-001": "c-001" }));
+  const qc = useQueryClient();
 
-  const [tasksByConversation, setTasksByConversation] = useState<Record<string, Task[]>>(() => ({
-    "c-001": [
-      {
-        id: "TSK-892",
-        title: "Batch-format Markdown docs",
-        status: "schedule",
-        tags: ["Docs"],
-        agentLabel: "Default agent",
-        agentInitials: "M",
-        meta: "Waiting for scheduling",
-      },
-      {
-        id: "TSK-890",
-        title: "Build Snake game (React + Canvas)",
-        status: "inprogress",
-        tags: ["Frontend", "Sandbox"],
-        agentLabel: "Default agent",
-        agentInitials: "M",
-        meta: "Executing: implementing UI and styles",
-        progress: 45,
-      },
-    ],
-    "c-002": [
-      {
-        id: "TSK-893",
-        title: "Scrape competitor pricing page",
-        status: "queue",
-        tags: ["Web Search"],
-        agentLabel: "Default agent",
-        agentInitials: "M",
-        meta: "Waiting for scheduling",
-      },
-      {
-        id: "TSK-881",
-        title: "Generate project structure diagram",
-        status: "done",
-        tags: ["Success"],
-        agentLabel: "Default agent",
-        agentInitials: "M",
-        meta: "Completed yesterday",
-      },
-    ],
-    "c-003": [
-      {
-        id: "TSK-885",
-        title: "Auto-reply client email script",
-        status: "inprogress",
-        tags: ["Python"],
-        agentLabel: "Default agent",
-        agentInitials: "M",
-        meta: "Permission requested: allow reading inbox.csv?",
-        highlight: "warn",
-      },
-    ],
-    "c-101": [],
-    "c-201": [],
-    "c-301": [],
-  }));
+  const [messageDraft, setMessageDraft] = useState("");
+  const [activeProjectId, setActiveProjectId] = useState<string | null>(() => loadString(LS_ACTIVE_PROJECT));
+  const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
+
+  const [activeConversationByProject, setActiveConversationByProject] = useState<Record<string, string>>(
+    () => loadJson<Record<string, string>>(LS_ACTIVE_CONV_BY_PROJECT) ?? {},
+  );
+
+  const projectsQuery = useQuery({
+    queryKey: ["projects"],
+    queryFn: projectsApi.list,
+  });
+
+  const projects = useMemo(() => (projectsQuery.data ?? []).map(mapProject), [projectsQuery.data]);
+
+  // Ensure we always have an active project when projects load.
+  useEffect(() => {
+    if (projects.length === 0) {
+      setActiveProjectId(null);
+      storeString(LS_ACTIVE_PROJECT, null);
+      return;
+    }
+    if (activeProjectId && projects.some((p) => p.id === activeProjectId)) return;
+    const next = projects[0]?.id ?? null;
+    setActiveProjectId(next);
+    storeString(LS_ACTIVE_PROJECT, next);
+  }, [activeProjectId, projects]);
 
   const activeProject = useMemo(() => {
     if (!activeProjectId) return null;
     return projects.find((p) => p.id === activeProjectId) ?? null;
   }, [projects, activeProjectId]);
 
+  const conversationsQuery = useQuery({
+    queryKey: ["conversations", activeProjectId],
+    enabled: !!activeProjectId,
+    queryFn: () => conversationsApi.list(activeProjectId),
+  });
+
+  const conversations = useMemo(
+    () => (conversationsQuery.data ?? []).map(mapConversation),
+    [conversationsQuery.data],
+  );
+
   const activeConversations = useMemo(() => {
     if (!activeProjectId) return [];
-    return sortConversations(conversations.filter((c) => c.projectId === activeProjectId));
-  }, [conversations, activeProjectId]);
+    return conversations.filter((c) => c.projectId === activeProjectId);
+  }, [activeProjectId, conversations]);
+
+  // Keep active conversation id in sync when project or conversations change.
+  useEffect(() => {
+    if (!activeProjectId) {
+      setActiveConversationId(null);
+      return;
+    }
+
+    const preferred = activeConversationByProject[activeProjectId] ?? null;
+    const existsPreferred = preferred && activeConversations.some((c) => c.id === preferred);
+    const next = (existsPreferred ? preferred : activeConversations[0]?.id) ?? null;
+    setActiveConversationId((current) => {
+      if (current && activeConversations.some((c) => c.id === current)) return current;
+      return next;
+    });
+  }, [activeConversationByProject, activeConversations, activeProjectId]);
+
+  useEffect(() => {
+    storeJson(LS_ACTIVE_CONV_BY_PROJECT, activeConversationByProject);
+  }, [activeConversationByProject]);
+
+  useEffect(() => {
+    if (!activeProjectId || !activeConversationId) return;
+    setActiveConversationByProject((prev) => ({ ...prev, [activeProjectId]: activeConversationId }));
+  }, [activeConversationId, activeProjectId]);
+
+  const messagesQuery = useQuery({
+    queryKey: ["messages", activeConversationId],
+    enabled: !!activeConversationId,
+    queryFn: () => conversationsApi.listMessages(activeConversationId!),
+  });
+  const messages = useMemo(() => (messagesQuery.data ?? []).map(mapMessage), [messagesQuery.data]);
 
   const activeConversation = useMemo(() => {
     if (!activeConversationId) return null;
-    return conversations.find((item) => item.id === activeConversationId) ?? null;
-  }, [conversations, activeConversationId]);
+    const base = conversations.find((c) => c.id === activeConversationId) ?? null;
+    if (!base) return null;
+    return { ...base, messages };
+  }, [activeConversationId, conversations, messages]);
 
+  const kanbanQuery = useQuery({
+    queryKey: ["kanban", activeProjectId],
+    enabled: !!activeProjectId,
+    queryFn: () => tasksApi.kanban(activeProjectId),
+    refetchInterval: 8_000,
+  });
+
+  const apiKanban = kanbanQuery.data ?? null;
   const activeTasks = useMemo(() => {
-    if (!activeConversationId) return [];
-    return tasksByConversation[activeConversationId] ?? [];
-  }, [tasksByConversation, activeConversationId]);
+    if (!apiKanban) return [];
+    return [
+      ...apiKanban.scheduled,
+      ...apiKanban.queued,
+      ...apiKanban.in_progress,
+      ...apiKanban.done,
+    ].map(mapTask);
+  }, [apiKanban]);
 
   const selectProject = (id: string) => {
     setActiveProjectId(id);
-    setMessageDraft("");
-    setActiveConversationId((current) => {
-      const last = lastConversationByProject[id];
-      const list = sortConversations(conversations.filter((c) => c.projectId === id));
-      const next = last && list.some((c) => c.id === last) ? last : list[0]?.id ?? null;
-      return next ?? current;
-    });
-  };
-
-  const createProject = () => {
-    const created: Project = { id: uid("p"), name: "New project", updatedAt: nowIso() };
-    const createdConversation: Conversation = {
-      id: uid("c"),
-      projectId: created.id,
-      title: "New conversation",
-      updatedAt: nowIso(),
-      messages: [],
-    };
-    setProjects((prev) => sortProjects([created, ...prev]));
-    setConversations((prev) => sortConversations([createdConversation, ...prev]));
-    setTasksByConversation((prev) => ({ ...prev, [createdConversation.id]: [] }));
-    setActiveProjectId(created.id);
-    setActiveConversationId(createdConversation.id);
-    setLastConversationByProject((prev) => ({ ...prev, [created.id]: createdConversation.id }));
-    setMessageDraft("");
-  };
-
-  const renameProject = (id: string, name: string) => {
-    const trimmed = name.trim();
-    if (!trimmed) return;
-    setProjects((prev) => sortProjects(prev.map((p) => (p.id === id ? { ...p, name: trimmed, updatedAt: nowIso() } : p))));
-  };
-
-  const deleteProject = (id: string) => {
-    const removedConversationIds = conversations.filter((c) => c.projectId === id).map((c) => c.id);
-    setProjects((prev) => prev.filter((p) => p.id !== id));
-    setConversations((prev) => prev.filter((c) => c.projectId !== id));
-    setTasksByConversation((prev) => {
-      const next = { ...prev };
-      for (const cid of removedConversationIds) delete next[cid];
-      return next;
-    });
-    setLastConversationByProject((prev) => {
-      const next = { ...prev };
-      delete next[id];
-      return next;
-    });
-    setActiveProjectId((current) => {
-      if (current !== id) return current;
-      const remaining = projects.filter((p) => p.id !== id);
-      return remaining[0]?.id ?? null;
-    });
-    setActiveConversationId((current) => {
-      const conv = conversations.find((c) => c.id === current) ?? null;
-      if (!conv || conv.projectId !== id) return current;
-      return null;
-    });
+    storeString(LS_ACTIVE_PROJECT, id);
     setMessageDraft("");
   };
 
   const selectConversation = (id: string) => {
-    const found = conversations.find((c) => c.id === id) ?? null;
-    if (found) {
-      setActiveProjectId(found.projectId);
-      setLastConversationByProject((prev) => ({ ...prev, [found.projectId]: id }));
-    }
     setActiveConversationId(id);
     setMessageDraft("");
   };
 
-  const createConversation = () => {
-    if (!activeProjectId) return;
-    const created: Conversation = {
-      id: uid("c"),
-      projectId: activeProjectId,
-      title: `New conversation`,
-      updatedAt: nowIso(),
-      messages: [],
-    };
-    setConversations((prev) => sortConversations([created, ...prev]));
-    setTasksByConversation((prev) => ({ ...prev, [created.id]: [] }));
-    setActiveConversationId(created.id);
-    setLastConversationByProject((prev) => ({ ...prev, [activeProjectId]: created.id }));
-    setMessageDraft("");
-  };
+  const createProject = useCallback(async () => {
+    const created = await projectsApi.create({ name: "New project" });
+    await qc.invalidateQueries({ queryKey: ["projects"] });
+    setActiveProjectId(created.id);
+    storeString(LS_ACTIVE_PROJECT, created.id);
 
-  const renameConversation = (id: string, title: string) => {
-    const trimmed = title.trim();
+    // Ensure the new project has at least one conversation.
+    const conv = await conversationsApi.create({
+      project_id: created.id,
+      title: "New conversation",
+    });
+    await qc.invalidateQueries({ queryKey: ["conversations", created.id] });
+    setActiveConversationId(conv.id);
+    setActiveConversationByProject((prev) => ({ ...prev, [created.id]: conv.id }));
+  }, [qc]);
+
+  const renameProject = useCallback(async (id: string, name: string) => {
+    const trimmed = name.trim();
     if (!trimmed) return;
-    setConversations((prev) =>
-      sortConversations(
-        prev.map((item) =>
-          item.id === id ? { ...item, title: trimmed, updatedAt: nowIso() } : item,
-        ),
-      ),
-    );
-  };
+    await projectsApi.update(id, { name: trimmed });
+    await qc.invalidateQueries({ queryKey: ["projects"] });
+  }, [qc]);
 
-  const deleteConversation = (id: string) => {
-    const removing = conversations.find((c) => c.id === id) ?? null;
-    setConversations((prev) => prev.filter((item) => item.id !== id));
-    setTasksByConversation((prev) => {
+  const deleteProject = useCallback(async (id: string) => {
+    await projectsApi.remove(id);
+    await qc.invalidateQueries({ queryKey: ["projects"] });
+    setActiveConversationByProject((prev) => {
       const next = { ...prev };
       delete next[id];
       return next;
     });
-    setActiveConversationId((current) => {
-      if (current !== id) return current;
-      const projectId = removing?.projectId ?? activeProjectId;
-      const remaining = projectId
-        ? sortConversations(conversations.filter((c) => c.projectId === projectId && c.id !== id))
-        : sortConversations(conversations.filter((c) => c.id !== id));
-      return remaining[0]?.id ?? null;
+  }, [qc]);
+
+  const createConversation = useCallback(async () => {
+    if (!activeProjectId) return;
+    const created = await conversationsApi.create({
+      project_id: activeProjectId,
+      title: "New conversation",
     });
-    if (removing) {
-      setLastConversationByProject((prev) => {
-        const next = { ...prev };
-        if (next[removing.projectId] === id) delete next[removing.projectId];
-        return next;
-      });
-    }
-    setMessageDraft("");
-  };
+    await qc.invalidateQueries({ queryKey: ["conversations", activeProjectId] });
+    setActiveConversationId(created.id);
+    setActiveConversationByProject((prev) => ({ ...prev, [activeProjectId]: created.id }));
+  }, [activeProjectId, qc]);
 
-  const sendMessage = (content: string) => {
-    const trimmed = content.trim();
-    if (!trimmed || !activeConversationId) return;
-    const msg: Message = { id: uid("m"), role: "user", content: trimmed, createdAt: nowIso() };
-    setConversations((prev) =>
-      sortConversations(
-        prev.map((item) =>
-          item.id === activeConversationId
-            ? { ...item, messages: [...item.messages, msg], updatedAt: nowIso() }
-            : item,
-        ),
-      ),
-    );
-    setMessageDraft("");
-  };
-
-  const moveTask = (taskId: string, next: TaskStatus) => {
-    if (!activeConversationId) return;
-    setTasksByConversation((prev) => {
-      const list = prev[activeConversationId] ?? [];
-      return {
-        ...prev,
-        [activeConversationId]: list.map((item) =>
-          item.id === taskId ? { ...item, status: next } : item,
-        ),
-      };
-    });
-  };
-
-  const createTask = (input: string | { title: string; tags?: string[]; meta?: string }) => {
-    const title = typeof input === "string" ? input : input.title;
+  const renameConversation = useCallback(async (id: string, title: string) => {
     const trimmed = title.trim();
-    if (!trimmed || !activeConversationId) return;
-    const tags =
-      typeof input === "string"
-        ? []
-        : (input.tags ?? []).map((t) => t.trim()).filter(Boolean);
-    const meta =
-      typeof input === "string" ? undefined : input.meta?.trim() || undefined;
-    const task: Task = {
-      id: `TSK-${Math.floor(Math.random() * 900) + 100}`,
-      title: trimmed,
-      status: "schedule",
-      tags,
-      agentLabel: "Unassigned",
-      agentInitials: "?",
-      meta,
-    };
-    setTasksByConversation((prev) => {
-      const list = prev[activeConversationId] ?? [];
-      return { ...prev, [activeConversationId]: [task, ...list] };
-    });
-  };
+    if (!trimmed) return;
+    await conversationsApi.update(id, { title: trimmed });
+    await qc.invalidateQueries({ queryKey: ["conversations", activeProjectId] });
+  }, [activeProjectId, qc]);
 
-  const moveAllQueueToInProgress = () => {
-    if (!activeConversationId) return;
-    setTasksByConversation((prev) => {
-      const list = prev[activeConversationId] ?? [];
-      const schedule = list.filter((t) => t.status === "schedule");
-      const queue = list.filter((t) => t.status === "queue");
-      const inprogress = list.filter((t) => t.status === "inprogress");
-      const done = list.filter((t) => t.status === "done");
-      if (queue.length === 0) return prev;
-      const movedQueue = queue.map((t) => ({ ...t, status: "inprogress" as const }));
-      return {
-        ...prev,
-        [activeConversationId]: [...schedule, ...inprogress, ...movedQueue, ...done],
-      };
-    });
-  };
+  const deleteConversation = useCallback(async (id: string) => {
+    await conversationsApi.remove(id);
+    await qc.invalidateQueries({ queryKey: ["conversations", activeProjectId] });
+    await qc.invalidateQueries({ queryKey: ["messages", id] });
+    if (activeConversationId === id) setActiveConversationId(null);
+  }, [activeConversationId, activeProjectId, qc]);
+
+  const sendMessage = useCallback(
+    async (content: string, opts?: { model?: string | null }): Promise<SendMessageResult | null> => {
+      const trimmed = content.trim();
+      if (!trimmed) return null;
+      if (!activeProjectId || !activeConversationId) return null;
+
+      const modelCatalog = await qc.fetchQuery({
+        queryKey: ["modelCatalog"],
+        queryFn: tasksApi.models,
+      });
+      const model = (opts?.model?.trim() || modelCatalog.default_model) ?? modelCatalog.default_model;
+
+      await conversationsApi.createMessage(activeConversationId, {
+        role: "user",
+        content: trimmed,
+      });
+
+      // Refresh messages before starting run so UI shows user message immediately.
+      await qc.invalidateQueries({ queryKey: ["messages", activeConversationId] });
+
+      const task = await tasksApi.create({
+        conversation_id: activeConversationId,
+        project_id: activeProjectId,
+        goal: trimmed,
+        model,
+      });
+
+      await qc.invalidateQueries({ queryKey: ["kanban", activeProjectId] });
+
+      const run = await tasksApi.createRun(task.id);
+      setMessageDraft("");
+      return { taskId: task.id, runId: run.id };
+    },
+    [activeConversationId, activeProjectId, qc],
+  );
+
+  const moveTask = useCallback(
+    async (taskId: string, next: TaskStatus) => {
+      await tasksApi.setQueueStatus(taskId, queueStatusFromStatus(next));
+      if (activeProjectId) await qc.invalidateQueries({ queryKey: ["kanban", activeProjectId] });
+    },
+    [activeProjectId, qc],
+  );
+
+  const createTask = useCallback(
+    async (input: string | { title: string; tags?: string[]; meta?: string }) => {
+      const title = typeof input === "string" ? input : input.title;
+      const trimmed = title.trim();
+      if (!trimmed) return;
+      if (!activeProjectId || !activeConversationId) return;
+
+      const modelCatalog = await qc.fetchQuery({
+        queryKey: ["modelCatalog"],
+        queryFn: tasksApi.models,
+      });
+      const model = modelCatalog.default_model;
+
+      await tasksApi.create({
+        conversation_id: activeConversationId,
+        project_id: activeProjectId,
+        goal: trimmed,
+        model,
+      });
+      if (activeProjectId) await qc.invalidateQueries({ queryKey: ["kanban", activeProjectId] });
+    },
+    [activeConversationId, activeProjectId, qc],
+  );
+
+  const moveAllQueueToInProgress = useCallback(async () => {
+    const queued = apiKanban?.queued ?? [];
+    if (queued.length === 0) return;
+    await Promise.all(queued.map((t) => tasksApi.setQueueStatus(t.id, "in_progress")));
+    if (activeProjectId) await qc.invalidateQueries({ queryKey: ["kanban", activeProjectId] });
+  }, [activeProjectId, apiKanban, qc]);
 
   const value: WorkspaceState = {
     projects,
@@ -414,7 +465,6 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     renameConversation,
     deleteConversation,
     sendMessage,
-    tasksByConversation,
     activeTasks,
     moveTask,
     createTask,
