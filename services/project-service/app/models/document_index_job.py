@@ -26,8 +26,15 @@ class DocumentIndexJob(Base, TimestampMixin):
     __tablename__ = "document_index_jobs"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    project_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
-    project_node_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("project_nodes.id", ondelete="CASCADE"), nullable=False)
+    project_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"),
+        nullable=True,
+    )
+    project_node_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("project_nodes.id", ondelete="CASCADE"),
+        nullable=True,
+    )
+    rag_collection_id: Mapped[uuid.UUID | None] = mapped_column(nullable=True, index=True)
     storage_path: Mapped[str] = mapped_column(String(1024), nullable=False)
     file_name: Mapped[str] = mapped_column(String(255), nullable=False)
     status: Mapped[DocumentIndexStatus] = mapped_column(

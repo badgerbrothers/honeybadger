@@ -28,6 +28,11 @@ class Task(Base, TimestampMixin):
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     conversation_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("conversations.id", ondelete="CASCADE"), nullable=False)
     project_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
+    rag_collection_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("rag_collections.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
 
     goal: Mapped[str] = mapped_column(Text, nullable=False)
     skill: Mapped[str | None] = mapped_column(String(100), nullable=True)

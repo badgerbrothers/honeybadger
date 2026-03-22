@@ -1,5 +1,5 @@
 """Projects API endpoints."""
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Header
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 import uuid
@@ -10,6 +10,7 @@ from app.models.artifact import Artifact
 from app.models.project import Project, ProjectNode, NodeType
 from app.schemas.project import ProjectCreate, ProjectUpdate, ProjectResponse, ProjectNodeResponse, ProjectFileUploadResponse
 from app.schemas.artifact import ArtifactResponse
+from app.security.auth import CurrentUser, get_current_user
 from app.services.rag_client import rag_client
 from app.services.storage import storage_service
 
@@ -19,60 +20,93 @@ router = APIRouter(prefix="/api/projects", tags=["projects"])
 MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
 ALLOWED_EXTENSIONS = {'.txt', '.md', '.markdown', '.pdf', '.json', '.csv'}
 
+
+async def _get_owned_project_or_404(
+    project_id: uuid.UUID,
+    user: CurrentUser,
+    db: AsyncSession,
+) -> Project:
+    result = await db.execute(
+        select(Project).where(
+            Project.id == project_id,
+            Project.owner_user_id == user.id,
+        )
+    )
+    project = result.scalar_one_or_none()
+    if project is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return project
+
+
 @router.get("/", response_model=list[ProjectResponse])
-async def list_projects(db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Project))
+async def list_projects(
+    db: AsyncSession = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    result = await db.execute(select(Project).where(Project.owner_user_id == user.id))
     projects = result.scalars().all()
     return projects
 
+
 @router.post("/", response_model=ProjectResponse, status_code=201)
-async def create_project(project: ProjectCreate, db: AsyncSession = Depends(get_db)):
-    db_project = Project(**project.model_dump())
+async def create_project(
+    project: ProjectCreate,
+    db: AsyncSession = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    db_project = Project(**project.model_dump(), owner_user_id=user.id)
     db.add(db_project)
     await db.commit()
     await db.refresh(db_project)
     return db_project
 
+
 @router.get("/{project_id}", response_model=ProjectResponse)
-async def get_project(project_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Project).where(Project.id == project_id))
-    project = result.scalar_one_or_none()
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+async def get_project(
+    project_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    project = await _get_owned_project_or_404(project_id=project_id, user=user, db=db)
     return project
 
+
 @router.patch("/{project_id}", response_model=ProjectResponse)
-async def update_project(project_id: uuid.UUID, project_update: ProjectUpdate, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Project).where(Project.id == project_id))
-    project = result.scalar_one_or_none()
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+async def update_project(
+    project_id: uuid.UUID,
+    project_update: ProjectUpdate,
+    db: AsyncSession = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    project = await _get_owned_project_or_404(project_id=project_id, user=user, db=db)
     for key, value in project_update.model_dump(exclude_unset=True).items():
         setattr(project, key, value)
     await db.commit()
     await db.refresh(project)
     return project
 
+
 @router.delete("/{project_id}", status_code=204)
-async def delete_project(project_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Project).where(Project.id == project_id))
-    project = result.scalar_one_or_none()
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+async def delete_project(
+    project_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    project = await _get_owned_project_or_404(project_id=project_id, user=user, db=db)
     await db.delete(project)
     await db.commit()
+
 
 @router.post("/{project_id}/files/upload", response_model=ProjectFileUploadResponse, status_code=201)
 async def upload_project_file(
     project_id: uuid.UUID,
     file: UploadFile = File(...),
-    db: AsyncSession = Depends(get_db)
+    authorization: str = Header(..., alias="Authorization"),
+    db: AsyncSession = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
 ):
     """Upload file to project."""
-    result = await db.execute(select(Project).where(Project.id == project_id))
-    project = result.scalar_one_or_none()
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+    project = await _get_owned_project_or_404(project_id=project_id, user=user, db=db)
 
     file_ext = Path(file.filename).suffix.lower()
     if file_ext not in ALLOWED_EXTENSIONS:
@@ -111,7 +145,18 @@ async def upload_project_file(
 
         await db.commit()
         await db.refresh(node)
-        await rag_client.schedule_indexing(project_id=project_id, node_id=node.id)
+        if project.active_rag_collection_id:
+            await rag_client.schedule_indexing(
+                project_id=project_id,
+                node_id=node.id,
+                authorization_header=authorization,
+            )
+        else:
+            logger.info(
+                "project_file_index_skipped_no_active_rag",
+                project_id=str(project_id),
+                node_id=str(node.id),
+            )
 
         return {
             "id": node.id,
@@ -128,8 +173,13 @@ async def upload_project_file(
         raise HTTPException(status_code=503, detail="File storage service unavailable")
 
 @router.get("/{project_id}/files", response_model=list[ProjectNodeResponse])
-async def list_project_files(project_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
+async def list_project_files(
+    project_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
     """List all files in a project."""
+    await _get_owned_project_or_404(project_id=project_id, user=user, db=db)
     result = await db.execute(
         select(ProjectNode)
         .where(ProjectNode.project_id == project_id)
@@ -143,9 +193,11 @@ async def list_project_files(project_id: uuid.UUID, db: AsyncSession = Depends(g
 async def delete_project_file(
     project_id: uuid.UUID,
     file_id: uuid.UUID,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
 ):
     """Delete a project file."""
+    await _get_owned_project_or_404(project_id=project_id, user=user, db=db)
     result = await db.execute(
         select(ProjectNode)
         .where(ProjectNode.id == file_id)
@@ -168,8 +220,13 @@ async def delete_project_file(
 
 
 @router.get("/{project_id}/artifacts", response_model=list[ArtifactResponse])
-async def list_project_artifacts(project_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
+async def list_project_artifacts(
+    project_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
     """List artifacts for a project."""
+    await _get_owned_project_or_404(project_id=project_id, user=user, db=db)
     result = await db.execute(
         select(Artifact).where(Artifact.project_id == project_id).order_by(Artifact.created_at.desc())
     )

@@ -7,6 +7,7 @@ from .sandbox import SandboxSession
 from .artifact import Artifact, ArtifactType
 from .document_chunk import DocumentChunk
 from .document_index_job import DocumentIndexJob, DocumentIndexStatus
+from .rag_collection import RagCollection
 
 __all__ = [
     "Base",
@@ -26,4 +27,5 @@ __all__ = [
     "DocumentChunk",
     "DocumentIndexJob",
     "DocumentIndexStatus",
+    "RagCollection",
 ]

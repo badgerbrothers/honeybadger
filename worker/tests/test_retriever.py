@@ -50,3 +50,19 @@ async def test_threshold_filtering():
     results = await retriever.retrieve("query", "proj1", threshold=0.7)
 
     assert len(results) == 0
+
+
+@pytest.mark.asyncio
+async def test_retrieve_prefers_rag_collection_scope():
+    """Retriever should pass rag_collection_id through when provided."""
+    mock_service = Mock()
+    mock_service.generate_embedding = AsyncMock(return_value=[0.1] * 1536)
+    mock_session = AsyncMock()
+    retriever = DocumentRetriever(mock_service, mock_session)
+    retriever._search_similar_chunks = AsyncMock(return_value=[])
+
+    await retriever.retrieve("query", "proj1", rag_collection_id="rag1", threshold=0.7)
+
+    _, kwargs = retriever._search_similar_chunks.call_args
+    assert kwargs["rag_collection_id"] == "rag1"
+    assert kwargs["project_id"] == "proj1"

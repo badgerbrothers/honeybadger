@@ -10,8 +10,11 @@ import io
 from urllib.parse import quote
 from app.database import get_db
 from app.models.artifact import Artifact, ArtifactType
+from app.models.project import Project
 from app.models.project import ProjectNode, NodeType
+from app.models.task import Task, TaskRun
 from app.schemas.artifact import ArtifactResponse
+from app.security.auth import CurrentUser, get_current_user, require_internal_service_token
 from app.services.storage import storage_service
 
 router = APIRouter(prefix="/api/artifacts", tags=["artifacts"])
@@ -20,13 +23,51 @@ router = APIRouter(prefix="/api/artifacts", tags=["artifacts"])
 MAX_FILE_SIZE = 100 * 1024 * 1024  # 100MB
 
 
-@router.get("/{artifact_id}", response_model=ArtifactResponse)
-async def get_artifact(artifact_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
-    """Get artifact metadata."""
-    result = await db.execute(select(Artifact).where(Artifact.id == artifact_id))
+async def _get_owned_artifact_or_404(
+    artifact_id: uuid.UUID,
+    user: CurrentUser,
+    db: AsyncSession,
+) -> Artifact:
+    result = await db.execute(
+        select(Artifact)
+        .join(Project, Artifact.project_id == Project.id)
+        .where(
+            Artifact.id == artifact_id,
+            Project.owner_user_id == user.id,
+        )
+    )
     artifact = result.scalar_one_or_none()
-    if not artifact:
+    if artifact is None:
         raise HTTPException(status_code=404, detail="Artifact not found")
+    return artifact
+
+
+async def _ensure_owned_project_and_run(
+    project_id: uuid.UUID,
+    task_run_id: uuid.UUID,
+    db: AsyncSession,
+) -> None:
+    run_result = await db.execute(
+        select(TaskRun)
+        .join(Task, TaskRun.task_id == Task.id)
+        .join(Project, Task.project_id == Project.id)
+        .where(
+            TaskRun.id == task_run_id,
+            Project.id == project_id,
+        )
+    )
+    if run_result.scalar_one_or_none() is None:
+        raise HTTPException(status_code=404, detail="Task run not found")
+
+
+@router.get("/{artifact_id}", response_model=ArtifactResponse)
+async def get_artifact(
+    artifact_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    """Get artifact metadata."""
+    artifact = await _get_owned_artifact_or_404(artifact_id=artifact_id, user=user, db=db)
     return artifact
 
 
@@ -36,9 +77,11 @@ async def upload_artifact(
     task_run_id: uuid.UUID,
     artifact_type: ArtifactType = Query(default=ArtifactType.FILE),
     file: UploadFile = File(...),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    _: None = Depends(require_internal_service_token),
 ):
     """Upload artifact file."""
+    await _ensure_owned_project_and_run(project_id=project_id, task_run_id=task_run_id, db=db)
     artifact_id = uuid.uuid4()
     object_name = f"{project_id}/{task_run_id}/{artifact_id}/{file.filename}"
 
@@ -65,12 +108,13 @@ async def upload_artifact(
 
 
 @router.get("/{artifact_id}/download")
-async def download_artifact(artifact_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
+async def download_artifact(
+    artifact_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
     """Download artifact file."""
-    result = await db.execute(select(Artifact).where(Artifact.id == artifact_id))
-    artifact = result.scalar_one_or_none()
-    if not artifact:
-        raise HTTPException(status_code=404, detail="Artifact not found")
+    artifact = await _get_owned_artifact_or_404(artifact_id=artifact_id, user=user, db=db)
 
     data = await storage_service.download_file(artifact.storage_path)
     return StreamingResponse(
@@ -81,8 +125,20 @@ async def download_artifact(artifact_id: uuid.UUID, db: AsyncSession = Depends(g
 
 
 @router.get("/list/project/{project_id}", response_model=list[ArtifactResponse])
-async def list_project_artifacts(project_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
+async def list_project_artifacts(
+    project_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
     """List artifacts for a project."""
+    project_result = await db.execute(
+        select(Project).where(
+            Project.id == project_id,
+            Project.owner_user_id == user.id,
+        )
+    )
+    if project_result.scalar_one_or_none() is None:
+        raise HTTPException(status_code=404, detail="Project not found")
     result = await db.execute(
         select(Artifact).where(Artifact.project_id == project_id).order_by(Artifact.created_at.desc())
     )
@@ -90,8 +146,23 @@ async def list_project_artifacts(project_id: uuid.UUID, db: AsyncSession = Depen
 
 
 @router.get("/list/run/{run_id}", response_model=list[ArtifactResponse])
-async def list_run_artifacts(run_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
+async def list_run_artifacts(
+    run_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
     """List artifacts produced by a run."""
+    run_result = await db.execute(
+        select(TaskRun)
+        .join(Task, TaskRun.task_id == Task.id)
+        .join(Project, Task.project_id == Project.id)
+        .where(
+            TaskRun.id == run_id,
+            Project.owner_user_id == user.id,
+        )
+    )
+    if run_result.scalar_one_or_none() is None:
+        raise HTTPException(status_code=404, detail="Run not found")
     result = await db.execute(
         select(Artifact).where(Artifact.task_run_id == run_id).order_by(Artifact.created_at.desc())
     )
@@ -99,12 +170,13 @@ async def list_run_artifacts(run_id: uuid.UUID, db: AsyncSession = Depends(get_d
 
 
 @router.delete("/{artifact_id}", status_code=204)
-async def delete_artifact(artifact_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
+async def delete_artifact(
+    artifact_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
     """Delete artifact."""
-    result = await db.execute(select(Artifact).where(Artifact.id == artifact_id))
-    artifact = result.scalar_one_or_none()
-    if not artifact:
-        raise HTTPException(status_code=404, detail="Artifact not found")
+    artifact = await _get_owned_artifact_or_404(artifact_id=artifact_id, user=user, db=db)
 
     # Delete database record first to maintain consistency
     storage_path = artifact.storage_path
@@ -116,12 +188,13 @@ async def delete_artifact(artifact_id: uuid.UUID, db: AsyncSession = Depends(get
 
 
 @router.post("/{artifact_id}/save-to-project")
-async def save_artifact_to_project(artifact_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
+async def save_artifact_to_project(
+    artifact_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
     """Persist an artifact as a project file node."""
-    result = await db.execute(select(Artifact).where(Artifact.id == artifact_id))
-    artifact = result.scalar_one_or_none()
-    if not artifact:
-        raise HTTPException(status_code=404, detail="Artifact not found")
+    artifact = await _get_owned_artifact_or_404(artifact_id=artifact_id, user=user, db=db)
 
     node_id = uuid.uuid4()
     source_name = PurePosixPath(artifact.storage_path).name

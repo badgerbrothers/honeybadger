@@ -10,13 +10,24 @@ import httpx
 class BackendClient:
     """Small HTTP client for backend coordination."""
 
-    def __init__(self, base_url: str):
+    def __init__(self, base_url: str, internal_service_token: str | None = None):
         self.base_url = base_url.rstrip("/")
+        self.internal_service_token = internal_service_token or ""
+
+    def _headers(self) -> dict[str, str]:
+        headers: dict[str, str] = {}
+        if self.internal_service_token:
+            headers["X-Internal-Service-Token"] = self.internal_service_token
+        return headers
 
     async def emit_run_event(self, run_id: str, event: dict) -> None:
         """Send a run event to the backend fan-out endpoint."""
         async with httpx.AsyncClient(base_url=self.base_url, timeout=10) as client:
-            response = await client.post(f"/api/runs/{run_id}/events", json=event)
+            response = await client.post(
+                f"/api/runs/{run_id}/events",
+                json=event,
+                headers=self._headers(),
+            )
             response.raise_for_status()
 
     async def upload_artifact(
@@ -39,6 +50,7 @@ class BackendClient:
                         "artifact_type": artifact_type,
                     },
                     files={"file": (path.name, handle, mime_type)},
+                    headers=self._headers(),
                 )
             response.raise_for_status()
             return response.json()

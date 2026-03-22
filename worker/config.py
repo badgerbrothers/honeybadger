@@ -56,6 +56,7 @@ class Settings(BaseSettings):
     worker_mode: str = "polling"
     worker_poll_interval: int = 5  # seconds
     backend_base_url: str = "http://localhost:8002"
+    internal_service_token: str = "dev-internal-token"
     sandbox_image: str = "badgers-sandbox:latest"
     sandbox_memory_limit: str = "512m"
     sandbox_cpu_quota: int = 50000

@@ -37,6 +37,7 @@ class Task(Base, TimestampMixin):
     project_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("projects.id", ondelete="CASCADE"), nullable=False
     )
+    rag_collection_id: Mapped[uuid.UUID | None] = mapped_column(nullable=True, index=True)
 
     goal: Mapped[str] = mapped_column(Text, nullable=False)
     skill: Mapped[str | None] = mapped_column(String(100), nullable=True)
@@ -78,4 +79,3 @@ class TaskRun(Base, TimestampMixin):
 
     task: Mapped["Task"] = relationship(back_populates="runs", foreign_keys=[task_id])
     sandbox_session: Mapped["SandboxSession | None"] = relationship(back_populates="task_run")
-

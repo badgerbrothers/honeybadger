@@ -8,6 +8,7 @@ class TaskCreate(BaseModel):
     """Schema for creating a task."""
     conversation_id: uuid.UUID
     project_id: uuid.UUID
+    rag_collection_id: uuid.UUID | None = None
     goal: str = Field(..., min_length=1)
     skill: str | None = Field(None, max_length=100)
     model: str | None = Field(None, max_length=100)
@@ -26,6 +27,7 @@ class TaskResponse(BaseModel):
     id: uuid.UUID
     conversation_id: uuid.UUID
     project_id: uuid.UUID
+    rag_collection_id: uuid.UUID | None
     goal: str
     skill: str | None
     model: str

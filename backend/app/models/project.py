@@ -16,6 +16,12 @@ class Project(Base, TimestampMixin):
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    owner_user_id: Mapped[uuid.UUID] = mapped_column(nullable=False, index=True)
+    active_rag_collection_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("rag_collections.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
 
     # Relationships
     nodes: Mapped[list["ProjectNode"]] = relationship(back_populates="project", cascade="all, delete-orphan")

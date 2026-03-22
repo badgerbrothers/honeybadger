@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.database import init_db
-from app.routers import conversations, projects
+from app.routers import conversations, project_rag, projects
 from app.services.queue_service import queue_service
 
 app = FastAPI(title="Badgers Project Service")
@@ -34,6 +34,7 @@ app.add_middleware(
 
 app.include_router(projects.router)
 app.include_router(conversations.router)
+app.include_router(project_rag.router)
 
 
 @app.get("/health")

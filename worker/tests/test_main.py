@@ -283,3 +283,32 @@ async def test_upload_artifact_from_tool_result_emits_artifact_event():
     assert events
     assert events[0][0] == "artifact_created"
     assert events[0][1]["artifact_id"] == "a1"
+
+
+@pytest.mark.asyncio
+async def test_retrieve_project_context_skips_when_rag_not_selected():
+    """No RAG selected should skip retriever entirely."""
+    from worker.main import retrieve_project_context
+
+    mock_task = Mock()
+    mock_task.goal = "test goal"
+    mock_task.project_id = uuid.uuid4()
+    mock_task.rag_collection_id = None
+
+    mock_task_run = Mock()
+    mock_session = AsyncMock()
+
+    fake_embeddings_module = types.ModuleType("rag.embeddings")
+    fake_retriever_module = types.ModuleType("rag.retriever")
+    fake_embeddings_module.EmbeddingService = Mock()
+    retriever_cls = Mock()
+    fake_retriever_module.DocumentRetriever = retriever_cls
+
+    with patch("worker.main.settings.openai_api_key", "test-key"), patch.dict(
+        sys.modules,
+        {"rag.embeddings": fake_embeddings_module, "rag.retriever": fake_retriever_module},
+    ):
+        result = await retrieve_project_context(mock_task, mock_task_run, mock_session)
+
+    assert result is None
+    retriever_cls.assert_not_called()

@@ -56,6 +56,30 @@ services:
       timeout: 5s
       retries: 10
 
+  auth-service:
+    build:
+      context: ./services/auth-service
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-badgers}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-badgers}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-badgers_dev_password}
+      JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret}
+      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+      JWT_ISSUER: ${JWT_ISSUER:-badgers-auth}
+      JWT_AUDIENCE: ${JWT_AUDIENCE:-badgers-services}
+      JWT_ACCESS_EXPIRE_MINUTES: ${JWT_ACCESS_EXPIRE_MINUTES:-30}
+      JWT_REFRESH_EXPIRE_DAYS: ${JWT_REFRESH_EXPIRE_DAYS:-7}
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/api/auth/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
   project-service:
     build:
       context: ./services/project-service
@@ -76,6 +100,11 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://api.openai.com/v1}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret}
+      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+      JWT_ISSUER: ${JWT_ISSUER:-badgers-auth}
+      JWT_AUDIENCE: ${JWT_AUDIENCE:-badgers-services}
+      AUTH_SERVICE_URL: ${AUTH_SERVICE_URL:-http://auth-service:8080}
     ports:
       - "8001:8000"
     depends_on:
@@ -114,6 +143,12 @@ services:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       DEFAULT_MAIN_MODEL: ${DEFAULT_MAIN_MODEL:-gpt-5.3-codex}
       SUPPORTED_MODELS: ${SUPPORTED_MODELS:-gpt-5.3-codex,gpt-4-turbo-preview,gpt-4-turbo,gpt-4,gpt-3.5-turbo,gpt-3.5-turbo-16k,claude-3-opus-20240229,claude-3-sonnet-20240229,claude-3-haiku-20240307}
+      JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret}
+      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+      JWT_ISSUER: ${JWT_ISSUER:-badgers-auth}
+      JWT_AUDIENCE: ${JWT_AUDIENCE:-badgers-services}
+      AUTH_SERVICE_URL: ${AUTH_SERVICE_URL:-http://auth-service:8080}
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-dev-internal-token}
     ports:
       - "8002:8000"
     depends_on:
@@ -149,6 +184,11 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://api.openai.com/v1}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret}
+      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+      JWT_ISSUER: ${JWT_ISSUER:-badgers-auth}
+      JWT_AUDIENCE: ${JWT_AUDIENCE:-badgers-services}
+      AUTH_SERVICE_URL: ${AUTH_SERVICE_URL:-http://auth-service:8080}
     ports:
       - "8003:8000"
     depends_on:
@@ -187,6 +227,8 @@ services:
     ports:
       - "80:80"
     depends_on:
+      auth-service:
+        condition: service_healthy
       project-service:
         condition: service_healthy
       task-service:
@@ -220,6 +262,7 @@ services:
       OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://api.openai.com/v1}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       DEFAULT_MAIN_MODEL: ${DEFAULT_MAIN_MODEL:-gpt-5.3-codex}
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-dev-internal-token}
       SANDBOX_IMAGE: ${SANDBOX_IMAGE:-badgers-sandbox:latest}
       SANDBOX_MEMORY_LIMIT: ${SANDBOX_MEMORY_LIMIT:-2g}
       SANDBOX_CPU_QUOTA: ${SANDBOX_CPU_QUOTA:-50000}
@@ -262,6 +305,7 @@ services:
       OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://api.openai.com/v1}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       DEFAULT_MAIN_MODEL: ${DEFAULT_MAIN_MODEL:-gpt-5.3-codex}
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-dev-internal-token}
       WORKER_TYPE: indexjob
       WORKER_MODE: rabbitmq
     volumes:

@@ -18,6 +18,11 @@ class Settings(BaseSettings):
 
     # OpenAI API
     openai_api_key: str = ""
+    jwt_secret: str = "dev-jwt-secret"
+    jwt_algorithm: str = "HS256"
+    jwt_issuer: str = "badgers-auth"
+    jwt_audience: str = "badgers-services"
+    auth_service_url: str = "http://localhost:8080"
 
     # RAG Configuration
     embedding_model: str = "text-embedding-3-small"

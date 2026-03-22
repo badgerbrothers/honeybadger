@@ -19,6 +19,12 @@ class Settings(BaseSettings):
     # OpenAI API
     openai_api_key: str = ""
     default_main_model: str = "gpt-5.3-codex"
+    jwt_secret: str = "dev-jwt-secret"
+    jwt_algorithm: str = "HS256"
+    jwt_issuer: str = "badgers-auth"
+    jwt_audience: str = "badgers-services"
+    internal_service_token: str = "dev-internal-token"
+    auth_service_url: str = "http://localhost:8080"
     supported_models_raw: str = Field(
         default=(
             "gpt-5.3-codex,"

@@ -19,15 +19,18 @@ class DocumentRetriever:
     async def retrieve(
         self,
         query: str,
-        project_id: str,
+        project_id: str | None = None,
+        *,
+        rag_collection_id: str | None = None,
         top_k: int = 5,
-        threshold: float = 0.7
+        threshold: float = 0.7,
     ) -> List[Dict]:
         """Retrieve similar chunks for a query.
 
         Args:
             query: Search query
-            project_id: Project ID to filter by
+            project_id: Project ID scope (fallback when rag_collection_id is not set)
+            rag_collection_id: Global RAG scope (priority over project_id)
             top_k: Number of results to return
             threshold: Minimum similarity score (0-1)
 
@@ -39,7 +42,11 @@ class DocumentRetriever:
 
         # Search similar chunks
         results = await self._search_similar_chunks(
-            query_embedding, project_id, top_k, threshold
+            query_embedding,
+            project_id=project_id,
+            rag_collection_id=rag_collection_id,
+            top_k=top_k,
+            threshold=threshold,
         )
 
         return results
@@ -51,18 +58,27 @@ class DocumentRetriever:
     async def _search_similar_chunks(
         self,
         embedding: List[float],
-        project_id: str,
+        *,
+        project_id: str | None,
+        rag_collection_id: str | None,
         top_k: int,
-        threshold: float
+        threshold: float,
     ) -> List[Dict]:
         """Search for similar chunks using cosine similarity."""
+        if rag_collection_id is not None:
+            scope_filter = DocumentChunk.rag_collection_id == rag_collection_id
+        elif project_id is not None:
+            scope_filter = DocumentChunk.project_id == project_id
+        else:
+            raise ValueError("Either rag_collection_id or project_id must be provided")
+
         # pgvector cosine distance: 1 - cosine_similarity
         # So similarity = 1 - distance
         query = select(
             DocumentChunk,
             (1 - DocumentChunk.embedding.cosine_distance(embedding)).label("similarity")
         ).where(
-            DocumentChunk.project_id == project_id
+            scope_filter
         ).order_by(
             DocumentChunk.embedding.cosine_distance(embedding)
         ).limit(top_k)

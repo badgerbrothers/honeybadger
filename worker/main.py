@@ -179,8 +179,12 @@ async def finalize_run_state(
 
 
 async def retrieve_project_context(task, task_run, session: AsyncSession) -> str | None:
-    """Retrieve project chunks relevant to the task goal and persist a summary."""
+    """Retrieve RAG chunks relevant to the task goal and persist a summary."""
     if not settings.openai_api_key:
+        return None
+    rag_collection_id = getattr(task, "rag_collection_id", None)
+    if not rag_collection_id:
+        # RAG is optional. When no collection is selected, skip retrieval entirely.
         return None
 
     from rag.embeddings import EmbeddingService
@@ -196,7 +200,8 @@ async def retrieve_project_context(task, task_run, session: AsyncSession) -> str
     )
     chunks = await retriever.retrieve(
         query=task.goal,
-        project_id=task.project_id,
+        project_id=None,
+        rag_collection_id=str(rag_collection_id),
         top_k=5,
         threshold=0.55,
     )
@@ -299,7 +304,11 @@ async def execute_document_index_job(job_id: uuid.UUID, session: AsyncSession):
             ),
             session,
         )
-        chunk_count = await indexer.index_document(job.project_id, str(local_path))
+        chunk_count = await indexer.index_document(
+            project_id=job.project_id,
+            rag_collection_id=getattr(job, "rag_collection_id", None),
+            file_path=str(local_path),
+        )
 
         job.status = DocumentIndexStatus.COMPLETED
         job.completed_at = utcnow()
@@ -327,7 +336,14 @@ async def execute_task_run(task_run_id: uuid.UUID, session: AsyncSession):
     sandbox = None
     sandbox_session = None
     pending_event_tasks: list[asyncio.Task] = []
-    backend_client = BackendClient(settings.backend_base_url) if settings.backend_base_url else None
+    backend_client = (
+        BackendClient(
+            settings.backend_base_url,
+            internal_service_token=settings.internal_service_token,
+        )
+        if settings.backend_base_url
+        else None
+    )
 
     def schedule_event(event_type: str, **payload) -> None:
         pending_event_tasks.append(

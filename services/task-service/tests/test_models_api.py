@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime
+from types import SimpleNamespace
 
 import pytest
 from fastapi import FastAPI
@@ -11,6 +12,7 @@ from httpx import ASGITransport, AsyncClient
 from app.database import get_db
 from app.models.task import QueueStatus
 from app.routers import tasks as tasks_router
+from app.security.auth import CurrentUser, get_current_user
 
 
 class _FakeSession:
@@ -54,7 +56,15 @@ def test_app(monkeypatch: pytest.MonkeyPatch):
     async def _override_db():
         yield _FakeSession()
 
+    async def _override_current_user() -> CurrentUser:
+        return CurrentUser(id=uuid.UUID("00000000-0000-0000-0000-000000000002"), email="test@badgers.local")
+
+    async def _allow_owned_project_and_conversation(*args, **kwargs):
+        return SimpleNamespace(active_rag_collection_id=None)
+
     app.dependency_overrides[get_db] = _override_db
+    app.dependency_overrides[get_current_user] = _override_current_user
+    monkeypatch.setattr(tasks_router, "_ensure_owned_project_and_conversation", _allow_owned_project_and_conversation)
     return app
 
 

@@ -21,6 +21,7 @@ class ProjectResponse(BaseModel):
     id: uuid.UUID
     name: str
     description: str | None
+    active_rag_collection_id: uuid.UUID | None
     created_at: datetime
     updated_at: datetime
 

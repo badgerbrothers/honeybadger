@@ -27,7 +27,10 @@ class DocumentIndexer:
         }
 
     async def index_document(
-        self, project_id, file_path: str
+        self,
+        project_id,
+        file_path: str,
+        rag_collection_id=None,
     ) -> int:
         """Index a document into vector database.
 
@@ -45,7 +48,12 @@ class DocumentIndexer:
             chunks_with_embeddings = await self._generate_embeddings(chunks)
 
             # Store chunks
-            await self._store_chunks(project_id, file_path, chunks_with_embeddings)
+            await self._store_chunks(
+                project_id=project_id,
+                rag_collection_id=rag_collection_id,
+                file_path=file_path,
+                chunks=chunks_with_embeddings,
+            )
 
             return len(chunks)
         except Exception:
@@ -90,12 +98,22 @@ class DocumentIndexer:
         return chunks
 
     async def _store_chunks(
-        self, project_id: str, file_path: str, chunks: List[Dict]
+        self,
+        *,
+        project_id,
+        rag_collection_id,
+        file_path: str,
+        chunks: List[Dict],
     ) -> None:
         """Store chunks in database."""
+        if rag_collection_id is not None:
+            scope_filter = DocumentChunk.rag_collection_id == rag_collection_id
+        else:
+            scope_filter = DocumentChunk.project_id == project_id
+
         await self.db_session.execute(
             delete(DocumentChunk).where(
-                DocumentChunk.project_id == project_id,
+                scope_filter,
                 DocumentChunk.file_path == file_path,
             )
         )
@@ -103,6 +121,7 @@ class DocumentIndexer:
         for chunk in chunks:
             db_chunk = DocumentChunk(
                 project_id=project_id,
+                rag_collection_id=rag_collection_id,
                 file_path=file_path,
                 chunk_index=chunk["chunk_index"],
                 content=chunk["content"],
@@ -113,15 +132,28 @@ class DocumentIndexer:
             self.db_session.add(db_chunk)
 
         await self.db_session.flush()
-        await self.db_session.execute(
-            text(
-                """
-                UPDATE document_chunk
-                SET text_search_vector = to_tsvector('english', content)
-                WHERE project_id = :project_id
-                  AND file_path = :file_path
-                """
-            ),
-            {"project_id": str(project_id), "file_path": file_path},
-        )
+        if rag_collection_id is not None:
+            await self.db_session.execute(
+                text(
+                    """
+                    UPDATE document_chunk
+                    SET text_search_vector = to_tsvector('english', content)
+                    WHERE rag_collection_id = :rag_collection_id
+                      AND file_path = :file_path
+                    """
+                ),
+                {"rag_collection_id": str(rag_collection_id), "file_path": file_path},
+            )
+        else:
+            await self.db_session.execute(
+                text(
+                    """
+                    UPDATE document_chunk
+                    SET text_search_vector = to_tsvector('english', content)
+                    WHERE project_id = :project_id
+                      AND file_path = :file_path
+                    """
+                ),
+                {"project_id": str(project_id), "file_path": file_path},
+            )
         await self.db_session.commit()
