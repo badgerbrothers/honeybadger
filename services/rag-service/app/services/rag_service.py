@@ -34,16 +34,22 @@ class RagService:
 
     async def schedule_indexing(
         self,
-        project_id: uuid.UUID,
-        project_node_id: uuid.UUID,
+        *,
         storage_path: str,
         file_name: str,
         db: AsyncSession,
+        project_id: uuid.UUID | None = None,
+        project_node_id: uuid.UUID | None = None,
+        rag_collection_id: uuid.UUID | None = None,
     ) -> DocumentIndexJob:
-        """Create a new indexing job for a project file."""
+        """Create a new indexing job for a project node or a global RAG file."""
+        if project_id is None and rag_collection_id is None:
+            raise ValueError("Either project_id or rag_collection_id must be provided")
+
         job = DocumentIndexJob(
             project_id=project_id,
             project_node_id=project_node_id,
+            rag_collection_id=rag_collection_id,
             storage_path=storage_path,
             file_name=file_name,
             status=DocumentIndexStatus.PENDING,
@@ -56,8 +62,9 @@ class RagService:
         except Exception as exc:
             logger.error(
                 "index_job_publish_failed",
-                project_id=str(project_id),
-                project_node_id=str(project_node_id),
+                project_id=str(project_id) if project_id else None,
+                project_node_id=str(project_node_id) if project_node_id else None,
+                rag_collection_id=str(rag_collection_id) if rag_collection_id else None,
                 job_id=str(job.id),
                 error=str(exc),
                 exc_info=True,
@@ -71,17 +78,18 @@ class RagService:
 
     async def search(
         self,
-        project_id: uuid.UUID,
+        project_id: uuid.UUID | None,
         query: str,
         top_k: int,
         threshold: float,
         db: AsyncSession,
+        rag_collection_id: uuid.UUID | None = None,
         *,
         use_hybrid: bool = True,
         use_reranker: bool = True,
         use_query_rewrite: bool = False,
     ) -> list[dict]:
-        """Search indexed chunks for a project with optional RAG optimizations."""
+        """Search indexed chunks by rag_collection_id first, then project_id."""
         effective_query = query
         if use_query_rewrite:
             effective_query = await self.rewriter.rewrite(query, mode="expand")
@@ -91,12 +99,14 @@ class RagService:
             results = await retriever.retrieve(
                 effective_query,
                 project_id=project_id,
+                rag_collection_id=rag_collection_id,
                 top_k=max(top_k, 50),
                 candidate_k=50,
             )
         else:
             results = await self._vector_search(
                 project_id=project_id,
+                rag_collection_id=rag_collection_id,
                 query=effective_query,
                 top_k=50,
                 db=db,
@@ -113,18 +123,26 @@ class RagService:
     async def _vector_search(
         self,
         *,
-        project_id: uuid.UUID,
+        project_id: uuid.UUID | None,
+        rag_collection_id: uuid.UUID | None,
         query: str,
         top_k: int,
         db: AsyncSession,
     ) -> list[dict]:
         query_embedding = await self.embedding_service.generate_embedding(query)
+        if rag_collection_id is not None:
+            filters = [DocumentChunk.rag_collection_id == rag_collection_id]
+        elif project_id is not None:
+            filters = [DocumentChunk.project_id == project_id]
+        else:
+            raise ValueError("Either rag_collection_id or project_id must be provided")
+
         stmt = (
             select(
                 DocumentChunk,
                 (1 - DocumentChunk.embedding.cosine_distance(query_embedding)).label("score"),
             )
-            .where(DocumentChunk.project_id == project_id)
+            .where(*filters)
             .order_by(DocumentChunk.embedding.cosine_distance(query_embedding))
             .limit(top_k)
         )
@@ -190,6 +208,7 @@ class RagService:
         return await self.schedule_indexing(
             project_id=project_id,
             project_node_id=node.id,
+            rag_collection_id=None,
             storage_path=node.path,
             file_name=node.name,
             db=db,

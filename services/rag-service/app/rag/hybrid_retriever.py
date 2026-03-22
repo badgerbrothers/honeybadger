@@ -24,31 +24,47 @@ class HybridRetriever:
     async def retrieve(
         self,
         query: str,
-        project_id: uuid.UUID | str,
+        project_id: uuid.UUID | str | None = None,
+        rag_collection_id: uuid.UUID | str | None = None,
         *,
         top_k: int = 5,
         candidate_k: int = 50,
     ) -> list[dict[str, Any]]:
         """Retrieve and fuse candidates via Reciprocal Rank Fusion (RRF)."""
-        vector_results = await self._vector_search(query, project_id, top_k=candidate_k)
-        fulltext_results = await self._fulltext_search(query, project_id, top_k=candidate_k)
+        vector_results = await self._vector_search(
+            query,
+            project_id=project_id,
+            rag_collection_id=rag_collection_id,
+            top_k=candidate_k,
+        )
+        fulltext_results = await self._fulltext_search(
+            query,
+            project_id=project_id,
+            rag_collection_id=rag_collection_id,
+            top_k=candidate_k,
+        )
         fused = self._rrf_fusion(vector_results, fulltext_results, k=60)
         return fused[:top_k]
 
     async def _vector_search(
         self,
         query: str,
-        project_id: uuid.UUID | str,
         *,
+        project_id: uuid.UUID | str | None,
+        rag_collection_id: uuid.UUID | str | None,
         top_k: int,
     ) -> list[dict[str, Any]]:
         embedding = await self.embedding_service.generate_embedding(query)
+        scope_filters = self._scope_filters(
+            project_id=project_id,
+            rag_collection_id=rag_collection_id,
+        )
         stmt = (
             select(
                 DocumentChunk,
                 (1 - DocumentChunk.embedding.cosine_distance(embedding)).label("score"),
             )
-            .where(DocumentChunk.project_id == project_id)
+            .where(*scope_filters)
             .order_by(DocumentChunk.embedding.cosine_distance(embedding))
             .limit(top_k)
         )
@@ -61,16 +77,21 @@ class HybridRetriever:
     async def _fulltext_search(
         self,
         query: str,
-        project_id: uuid.UUID | str,
         *,
+        project_id: uuid.UUID | str | None,
+        rag_collection_id: uuid.UUID | str | None,
         top_k: int,
     ) -> list[dict[str, Any]]:
         ts_query = func.websearch_to_tsquery("english", query)
         rank_expr = func.ts_rank_cd(DocumentChunk.text_search_vector, ts_query)
+        scope_filters = self._scope_filters(
+            project_id=project_id,
+            rag_collection_id=rag_collection_id,
+        )
         stmt = (
             select(DocumentChunk, rank_expr.label("score"))
             .where(
-                DocumentChunk.project_id == project_id,
+                *scope_filters,
                 DocumentChunk.text_search_vector.is_not(None),
                 DocumentChunk.text_search_vector.op("@@")(ts_query),
             )
@@ -137,3 +158,15 @@ class HybridRetriever:
             fused_candidates=len(rows),
         )
         return rows
+
+    @staticmethod
+    def _scope_filters(
+        *,
+        project_id: uuid.UUID | str | None,
+        rag_collection_id: uuid.UUID | str | None,
+    ) -> list[Any]:
+        if rag_collection_id is not None:
+            return [DocumentChunk.rag_collection_id == rag_collection_id]
+        if project_id is not None:
+            return [DocumentChunk.project_id == project_id]
+        raise ValueError("Either rag_collection_id or project_id must be provided")

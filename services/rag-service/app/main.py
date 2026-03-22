@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.database import init_db
-from app.routers import rag
+from app.routers import rag, rag_collections
 from app.services.queue_service import queue_service
 
 app = FastAPI(title="Badgers RAG Service")
@@ -33,6 +33,7 @@ app.add_middleware(
 )
 
 app.include_router(rag.router)
+app.include_router(rag_collections.router)
 
 
 @app.get("/api/rag")

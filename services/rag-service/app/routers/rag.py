@@ -3,8 +3,11 @@ import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from pydantic import BaseModel
 from app.database import get_db
+from app.models.project import Project
+from app.security.auth import CurrentUser, get_current_user
 from app.services.rag_service import rag_service
 
 router = APIRouter(prefix="/api/rag/projects", tags=["rag"])
@@ -20,13 +23,30 @@ class SearchRequest(BaseModel):
     threshold: float = 0.7
 
 
+async def _ensure_owned_project_or_404(
+    project_id: uuid.UUID,
+    user: CurrentUser,
+    db: AsyncSession,
+) -> None:
+    result = await db.execute(
+        select(Project).where(
+            Project.id == project_id,
+            Project.owner_user_id == user.id,
+        )
+    )
+    if result.scalar_one_or_none() is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+
 @router.post("/{project_id}/documents/index")
 async def index_document(
     project_id: uuid.UUID,
     request: IndexRequest,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
 ):
     """Index a document for RAG retrieval."""
+    await _ensure_owned_project_or_404(project_id=project_id, user=user, db=db)
     job = await rag_service.requeue_node(project_id, request.node_id, db)
     if job is None:
         raise HTTPException(status_code=404, detail="Project file not found")
@@ -45,9 +65,11 @@ async def search_chunks(
     use_hybrid: bool = Query(True, description="Enable vector + full-text hybrid search"),
     use_reranker: bool = Query(True, description="Enable cross-encoder reranking"),
     use_query_rewrite: bool = Query(False, description="Enable LLM query rewriting"),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
 ):
     """Search for similar document chunks."""
+    await _ensure_owned_project_or_404(project_id=project_id, user=user, db=db)
     chunks = await rag_service.search(
         project_id=project_id,
         query=request.query,
@@ -70,16 +92,25 @@ async def search_chunks(
 
 
 @router.get("/{project_id}/chunks")
-async def list_chunks(project_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
+async def list_chunks(
+    project_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
     """List all indexed chunks for a project."""
+    await _ensure_owned_project_or_404(project_id=project_id, user=user, db=db)
     return await rag_service.list_chunks(project_id, db)
 
 
 @router.delete("/{project_id}/chunks/{chunk_id}", status_code=204)
 async def delete_chunk(
-    project_id: uuid.UUID, chunk_id: int, db: AsyncSession = Depends(get_db)
+    project_id: uuid.UUID,
+    chunk_id: int,
+    db: AsyncSession = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
 ):
     """Delete a document chunk."""
+    await _ensure_owned_project_or_404(project_id=project_id, user=user, db=db)
     deleted = await rag_service.delete_chunk(project_id, chunk_id, db)
     if not deleted:
         raise HTTPException(status_code=404, detail="Chunk not found")
