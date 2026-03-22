@@ -5,22 +5,51 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>欢迎 - Manus Clone</title>
     <style>
+        :root {
+            --bg: #fcfcfc;
+            --panel: #ffffff;
+            --sidebar-bg: #f7f7f8;
+            --text: #1a1a1a;
+            --muted: #71717a;
+            --muted-2: #a1a1aa;
+            --border: #e5e5e5;
+            --border-strong: #d4d4d8;
+            --hover: #e5e5e5;
+            --brand: #2563eb;
+            --focus-ring: 2px solid var(--brand);
+
+            --radius-sm: 0.5rem;
+            --radius-md: 0.75rem;
+            --radius-xl: 1.5rem;
+
+            --shadow-1: 0 4px 15px rgba(0, 0, 0, 0.05);
+            --shadow-2: 0 4px 20px rgba(0, 0, 0, 0.08);
+        }
+
         /* 基础重置 */
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             display: flex;
             height: 100vh;
-            background-color: #fcfcfc;
-            color: #1a1a1a;
+            background-color: var(--bg);
+            color: var(--text);
             overflow: hidden;
+        }
+
+        button:focus-visible,
+        a:focus-visible,
+        .history-item:focus-visible,
+        .suggestion-card:focus-visible {
+            outline: var(--focus-ring);
+            outline-offset: 2px;
         }
 
         /* 侧边栏 (Manus 紧凑布局) */
         .sidebar {
             width: 260px;
-            background-color: #f7f7f8;
-            border-right: 1px solid #e5e5e5;
+            background-color: var(--sidebar-bg);
+            border-right: 1px solid var(--border);
             display: flex;
             flex-direction: column;
             padding: 1rem;
@@ -34,7 +63,7 @@
             margin-bottom: 1.5rem;
         }
         
-        .new-chat-btn {
+        .new-project-btn {
             flex-grow: 1;
             padding: 0.5rem 0.75rem;
             background-color: transparent;
@@ -49,25 +78,246 @@
             gap: 0.5rem;
             transition: all 0.2s;
         }
-        .new-chat-btn:hover { background-color: #e5e5e5; }
+        .new-project-btn:hover { background-color: var(--hover); }
         
         .icon-btn-small {
             background: none; border: none; cursor: pointer; color: #71717a; padding: 0.5rem; border-radius: 0.5rem; display: flex; align-items: center; justify-content: center;
         }
         .icon-btn-small:hover { background-color: #e5e5e5; color: #1a1a1a; }
 
+        .section-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.75rem;
+            padding: 0 0.5rem 0.5rem;
+        }
+
+        .section-title {
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: var(--muted-2);
+            letter-spacing: 0.02em;
+            text-transform: uppercase;
+            user-select: none;
+        }
+
+        .section-toggle {
+            width: 28px;
+            height: 28px;
+            border-radius: var(--radius-sm);
+            border: 1px solid transparent;
+            background: transparent;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--muted);
+            transition: background-color 0.2s, color 0.2s;
+        }
+        .section-toggle:hover { background-color: var(--hover); color: var(--text); }
+        .section-toggle svg { transition: transform 0.2s ease; }
+        .section-toggle[aria-expanded="false"] svg { transform: rotate(-90deg); }
+
+        .project-pill {
+            margin: 0 0.5rem 0.75rem;
+            padding: 0.5rem 0.75rem;
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.75);
+            color: var(--text);
+            font-size: 0.9rem;
+            font-weight: 600;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .history-item.active {
+            background-color: rgba(37, 99, 235, 0.08);
+            color: var(--text);
+        }
+        .history-item.active:hover { background-color: rgba(37, 99, 235, 0.12); }
+
+        .history-item.project-item { font-weight: 550; }
+        .history-item.conversation-item { padding-left: 1.5rem; position: relative; }
+        .history-item.conversation-item::before {
+            content: "";
+            position: absolute;
+            left: 0.75rem;
+            top: 50%;
+            width: 6px;
+            height: 6px;
+            border-radius: 999px;
+            background: var(--muted-2);
+            transform: translateY(-50%);
+        }
+
         .chat-history {
             flex-grow: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 0.25rem;
         }
         .history-item {
-            padding: 0.6rem 0.75rem; border-radius: 0.5rem; cursor: pointer; color: #4a4a4a; font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: background-color 0.2s;
+            padding: 0.6rem 0.75rem;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            color: #4a4a4a;
+            font-size: 0.9rem;
+            transition: background-color 0.2s, color 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.5rem;
         }
-        .history-item:hover { background-color: #e5e5e5; color: #1a1a1a; }
+        .history-item:hover { background-color: var(--hover); color: var(--text); }
+        .history-item:focus-visible { background-color: var(--hover); }
+
+        .item-label {
+            flex: 1;
+            min-width: 0;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .item-menu-btn {
+            width: 28px;
+            height: 28px;
+            padding: 0;
+            border-radius: var(--radius-sm);
+            border: 1px solid transparent;
+            background: transparent;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--muted);
+            opacity: 0;
+            transition: opacity 0.15s, background-color 0.2s, color 0.2s;
+            flex: 0 0 auto;
+        }
+        .history-item:hover .item-menu-btn,
+        .history-item:focus-within .item-menu-btn { opacity: 1; }
+        .item-menu-btn:hover { background-color: rgba(0,0,0,0.05); color: var(--text); }
+
+        .header-actions {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+
+        .header-plus-btn {
+            width: 28px;
+            height: 28px;
+            border-radius: var(--radius-sm);
+            border: 1px solid transparent;
+            background: transparent;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--muted);
+            transition: background-color 0.2s, color 0.2s;
+        }
+        .header-plus-btn:hover { background-color: var(--hover); color: var(--text); }
+
+        /* Global context menu (projects + conversations, unique) */
+        .context-menu {
+            position: fixed;
+            z-index: 9999;
+            min-width: 180px;
+            padding: 0.35rem;
+            border-radius: var(--radius-md);
+            border: 1px solid var(--border);
+            background: #ffffff;
+            box-shadow: 0 18px 50px rgba(0,0,0,0.14);
+        }
+        .context-menu button {
+            width: 100%;
+            background: transparent;
+            border: 1px solid transparent;
+            padding: 0.55rem 0.6rem;
+            border-radius: 0.6rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.75rem;
+            color: var(--text);
+            font-size: 0.9rem;
+            text-align: left;
+        }
+        .context-menu button:hover { background-color: #f4f4f5; }
+        .context-menu .danger { color: #b91c1c; }
+        .context-menu .danger:hover { background-color: rgba(185, 28, 28, 0.08); }
+
+        /* Composer: model/rag dropdowns */
+        .dropdown {
+            position: fixed;
+            z-index: 9999;
+            min-width: 260px;
+            border-radius: var(--radius-md);
+            border: 1px solid var(--border);
+            background: #ffffff;
+            box-shadow: 0 18px 50px rgba(0,0,0,0.14);
+            overflow: hidden;
+        }
+        .dropdown-top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.5rem 0.65rem;
+            border-bottom: 1px solid var(--border);
+            background: #fafafa;
+        }
+        .dropdown-title {
+            font-size: 0.8rem;
+            font-weight: 700;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.02em;
+        }
+        .dropdown-add {
+            width: 28px;
+            height: 28px;
+            border-radius: var(--radius-sm);
+            border: 1px solid transparent;
+            background: transparent;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--muted);
+        }
+        .dropdown-add:hover { background-color: var(--hover); color: var(--text); }
+        .dropdown-list {
+            max-height: 260px;
+            overflow: auto;
+            padding: 0.35rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+        .dropdown-item {
+            width: 100%;
+            background: transparent;
+            border: 1px solid transparent;
+            padding: 0.55rem 0.6rem;
+            border-radius: 0.6rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.75rem;
+            color: var(--text);
+            font-size: 0.9rem;
+            text-align: left;
+        }
+        .dropdown-item:hover { background-color: #f4f4f5; }
         
         .sidebar-footer {
             margin-top: auto;
             padding-top: 1rem;
-            border-top: 1px solid #e5e5e5;
+            border-top: 1px solid var(--border);
         }
         .user-profile {
             display: flex; align-items: center; gap: 0.75rem; padding: 0.5rem; cursor: pointer; border-radius: 0.5rem; transition: background-color 0.2s;
@@ -83,7 +333,8 @@
             display: flex;
             flex-direction: column;
             position: relative;
-            background-color: #ffffff;
+            background-color: var(--panel);
+            overflow: hidden;
         }
 
         /* 顶部操作区 (可选) */
@@ -96,17 +347,50 @@
             z-index: 10;
         }
 
+        .top-icon-link {
+            width: 38px;
+            height: 38px;
+            border-radius: var(--radius-md);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid transparent;
+            background: rgba(255, 255, 255, 0.75);
+            backdrop-filter: blur(8px);
+            color: var(--muted);
+            text-decoration: none;
+            transition: background-color 0.2s, color 0.2s, border-color 0.2s;
+        }
+        .top-icon-link:hover { background-color: #ffffff; color: var(--text); border-color: var(--border); }
+
         /* 居中欢迎内容 */
         .welcome-center {
             flex-grow: 1;
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: center;
+            justify-content: flex-start;
             padding: 2rem;
             max-width: 800px;
             margin: 0 auto;
             width: 100%;
+        }
+
+        .welcome-body {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            margin-top: auto;
+            margin-bottom: auto;
+        }
+
+        .composer {
+            width: 100%;
+            max-width: 700px;
+            margin-top: auto;
+            padding-bottom: 1.25rem;
         }
 
         .logo-large {
@@ -129,12 +413,12 @@
             max-width: 700px;
             position: relative;
             background-color: #ffffff;
-            border: 1px solid #d4d4d8;
+            border: 1px solid var(--border-strong);
             border-radius: 1.5rem;
             box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
             padding: 0.5rem;
             transition: border-color 0.2s, box-shadow 0.2s;
-            margin-bottom: 1.5rem;
+            margin-bottom: 0;
         }
         .input-container:focus-within {
             border-color: #a1a1aa;
@@ -242,26 +526,98 @@
     <!-- 侧边栏 (Manus 样式) -->
     <aside class="sidebar">
         <div class="sidebar-header">
-            <button class="new-chat-btn">
+            <button class="new-project-btn" type="button" aria-label="New project">
                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
-                New chat
+                New project
             </button>
-            <button class="icon-btn-small" title="收起侧边栏">
+            <button class="icon-btn-small" type="button" title="收起侧边栏" aria-label="Collapse sidebar">
                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 19l-7-7 7-7m8 14l-7-7 7-7"></path></svg>
             </button>
         </div>
         
-        <div style="font-size: 0.75rem; font-weight: 600; color: #a1a1aa; padding: 0 0.5rem 0.5rem;">Today</div>
-        <div class="chat-history">
-            <div class="history-item">Hacker News 数据抓取与分析</div>
-            <div class="history-item">重构 React 组件库</div>
+        <div class="section-row">
+            <div class="section-title">Current project</div>
+        </div>
+        <div class="project-pill" id="currentProjectName" title="Current project">Agent Work Platform</div>
+
+        <div class="section-row">
+            <div class="section-title">Conversations</div>
+            <div class="header-actions">
+                <button class="header-plus-btn" id="addConversationBtn" type="button" title="New conversation" aria-label="New conversation">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true" style="width: 18px; height: 18px;">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m7-7H5"></path>
+                    </svg>
+                </button>
+            </div>
+        </div>
+        <div class="chat-history" id="conversationList" role="list">
+            <div class="history-item conversation-item active" role="listitem" tabindex="0" data-kind="conversation">
+                <span class="item-label">Platform IA + layout</span>
+                <button class="item-menu-btn" type="button" aria-label="Conversation menu" title="Menu">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true" style="width: 18px; height: 18px;">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6l4 6-4 6"></path>
+                    </svg>
+                </button>
+            </div>
+            <div class="history-item conversation-item" role="listitem" tabindex="0" data-kind="conversation">
+                <span class="item-label">Agent routing rules</span>
+                <button class="item-menu-btn" type="button" aria-label="Conversation menu" title="Menu">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true" style="width: 18px; height: 18px;">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6l4 6-4 6"></path>
+                    </svg>
+                </button>
+            </div>
+            <div class="history-item conversation-item" role="listitem" tabindex="0" data-kind="conversation">
+                <span class="item-label">Tools + skills wiring</span>
+                <button class="item-menu-btn" type="button" aria-label="Conversation menu" title="Menu">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true" style="width: 18px; height: 18px;">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6l4 6-4 6"></path>
+                    </svg>
+                </button>
+            </div>
         </div>
 
-        <div style="font-size: 0.75rem; font-weight: 600; color: #a1a1aa; padding: 1.5rem 0.5rem 0.5rem;">Previous 7 Days</div>
-        <div class="chat-history" style="flex-grow: 0;">
-            <div class="history-item">API 性能优化方案</div>
-            <div class="history-item">写一篇关于 AI Agent 的博客</div>
-            <div class="history-item">配置 Docker 环境</div>
+        <div class="section-row">
+            <div class="section-title">Previous days</div>
+            <button class="section-toggle" id="projectsToggle" type="button" aria-expanded="true" aria-controls="projectsList" title="Collapse/expand" aria-label="Collapse or expand projects">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                </svg>
+            </button>
+        </div>
+        <div class="chat-history" id="projectsList" style="flex-grow: 0;" role="list">
+            <div class="history-item project-item active" role="listitem" tabindex="0" data-kind="project">
+                <span class="item-label">Agent Work Platform</span>
+                <button class="item-menu-btn" type="button" aria-label="Project menu" title="Menu">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true" style="width: 18px; height: 18px;">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6l4 6-4 6"></path>
+                    </svg>
+                </button>
+            </div>
+            <div class="history-item project-item" role="listitem" tabindex="0" data-kind="project">
+                <span class="item-label">Personal Sandbox</span>
+                <button class="item-menu-btn" type="button" aria-label="Project menu" title="Menu">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true" style="width: 18px; height: 18px;">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6l4 6-4 6"></path>
+                    </svg>
+                </button>
+            </div>
+            <div class="history-item project-item" role="listitem" tabindex="0" data-kind="project">
+                <span class="item-label">Client Research</span>
+                <button class="item-menu-btn" type="button" aria-label="Project menu" title="Menu">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true" style="width: 18px; height: 18px;">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6l4 6-4 6"></path>
+                    </svg>
+                </button>
+            </div>
+            <div class="history-item project-item" role="listitem" tabindex="0" data-kind="project">
+                <span class="item-label">Ops Automation</span>
+                <button class="item-menu-btn" type="button" aria-label="Project menu" title="Menu">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true" style="width: 18px; height: 18px;">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6l4 6-4 6"></path>
+                    </svg>
+                </button>
+            </div>
         </div>
 
         <div class="sidebar-footer">
@@ -277,55 +633,76 @@
         
         <!-- 顶部可选链接 -->
         <div class="top-bar">
-            <a href="dashboard.html" style="color: #71717a; text-decoration: none; font-size: 0.9rem;">Dashboard</a>
-            <a href="settings.html" style="color: #71717a; text-decoration: none; font-size: 0.9rem;">Settings</a>
+            <a class="top-icon-link" href="task_kanban.html" title="Dashboard" aria-label="Dashboard">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4h7v7H4V4zm9 0h7v4h-7V4zM4 13h7v7H4v-7zm9 6h7v-11h-7v11z"></path>
+                </svg>
+            </a>
+            <a class="top-icon-link" href="settings.html" title="Settings" aria-label="Settings">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15.5a3.5 3.5 0 110-7 3.5 3.5 0 010 7z"></path>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.4 15a7.96 7.96 0 00.1-2l2-1.5-2-3.5-2.4 1a8.14 8.14 0 00-1.7-1L15 4h-6L8.6 8a8.14 8.14 0 00-1.7 1l-2.4-1-2 3.5 2 1.5a7.96 7.96 0 000 2l-2 1.5 2 3.5 2.4-1a8.14 8.14 0 001.7 1L9 20h6l.4-4a8.14 8.14 0 001.7-1l2.4 1 2-3.5-2-1.5z"></path>
+                </svg>
+            </a>
         </div>
 
         <div class="welcome-center">
-            <!-- Logo -->
-            <svg class="logo-large" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
-            </svg>
+            <div class="welcome-body">
+                <!-- Logo -->
+                <svg class="logo-large" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+                </svg>
 
-            <h1 class="greeting">What can I help you with?</h1>
+                <h1 class="greeting">What can I help you with?</h1>
 
-            <!-- 强化的输入框 -->
-            <div class="input-container">
-                <textarea class="input-textarea" placeholder="Message Manus..."></textarea>
-                
-                <div class="input-toolbar">
-                    <div class="tools-left">
-                        <button class="tool-btn" title="Add attachment">
-                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"></path></svg>
-                        </button>
-                        <button class="tool-btn active" title="Web Search">
-                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"></path></svg>
-                            Search
-                        </button>
-                        <button class="tool-btn" title="Python / Code Execution">
-                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg>
-                            Code
-                        </button>
+                <!-- 快捷建议 -->
+                <div class="suggestions">
+                    <div class="suggestion-card">
+                        <svg style="color: #ea580c;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path></svg>
+                        Summarize my recent tasks
                     </div>
-                    <button class="send-btn" title="Send message" onclick="window.location.href='manus_clone.html'">
-                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
-                    </button>
+                    <div class="suggestion-card">
+                        <svg style="color: #2563eb;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg>
+                        Write a python script
+                    </div>
+                    <div class="suggestion-card">
+                        <svg style="color: #16a34a;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                        Analyze data from CSV
+                    </div>
                 </div>
             </div>
 
-            <!-- 快捷建议 -->
-            <div class="suggestions">
-                <div class="suggestion-card">
-                    <svg style="color: #ea580c;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path></svg>
-                    Summarize my recent tasks
-                </div>
-                <div class="suggestion-card">
-                    <svg style="color: #2563eb;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg>
-                    Write a python script
-                </div>
-                <div class="suggestion-card">
-                    <svg style="color: #16a34a;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-                    Analyze data from CSV
+            <!-- 输入框固定在底部 -->
+            <div class="composer">
+                <div class="input-container">
+                    <textarea class="input-textarea" placeholder="Message Manus..."></textarea>
+                    
+                    <div class="input-toolbar">
+                        <div class="tools-left">
+                            <button class="tool-btn" type="button" title="Add attachment" aria-label="Add attachment">
+                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"></path></svg>
+                            </button>
+                            <button class="tool-btn active" type="button" title="Web Search" aria-label="Web search">
+                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"></path></svg>
+                                Search
+                            </button>
+                            <button class="tool-btn" id="ragBtn" type="button" title="RAG" aria-label="RAG">
+                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h10M4 18h16"></path>
+                                </svg>
+                                RAG
+                            </button>
+                        </div>
+                        <button class="tool-btn" id="modelBtn" type="button" title="Model" aria-label="Model">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5h6M9 19h6M5 9h14M7 15h10"></path>
+                            </svg>
+                            <span id="modelBtnLabel">Model</span>
+                        </button>
+                        <button class="send-btn" title="Send message" aria-label="Send message" onclick="window.location.href='manus_clone.html'">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -335,13 +712,301 @@
     <script>
         // 输入框自适应高度
         const textarea = document.querySelector('.input-textarea');
-        textarea.addEventListener('input', function() {
-            this.style.height = 'auto';
-            this.style.height = (this.scrollHeight) + 'px';
-            if(this.value === '') {
-                this.style.height = '56px';
+        function autoresize(el) {
+            el.style.height = 'auto';
+            el.style.height = (el.scrollHeight) + 'px';
+            if (el.value === '') el.style.height = '56px';
+        }
+        textarea.addEventListener('input', function() { autoresize(this); });
+        autoresize(textarea);
+
+        // Projects: collapse/expand (triangle on the right)
+        const projectsToggle = document.getElementById('projectsToggle');
+        const projectsList = document.getElementById('projectsList');
+        if (projectsToggle && projectsList) {
+            projectsToggle.addEventListener('click', () => {
+                const expanded = projectsToggle.getAttribute('aria-expanded') === 'true';
+                projectsToggle.setAttribute('aria-expanded', String(!expanded));
+                projectsList.hidden = expanded;
+            });
+        }
+
+        // Global unique popovers: one context menu for project/conversation, plus model/rag dropdowns.
+        const popovers = {
+            itemMenu: null,
+            dropdown: null,
+        };
+
+        function closeAllPopovers() {
+            if (popovers.itemMenu) popovers.itemMenu.hidden = true;
+            if (popovers.dropdown) popovers.dropdown.hidden = true;
+        }
+
+        function ensureItemMenu() {
+            if (popovers.itemMenu) return popovers.itemMenu;
+            const el = document.createElement('div');
+            el.id = 'itemMenu';
+            el.className = 'context-menu';
+            el.hidden = true;
+            el.innerHTML = `
+                <button type="button" data-action="rename">
+                    <span>Rename</span>
+                    <span style="color: var(--muted); font-size: 0.8rem;">R</span>
+                </button>
+                <button type="button" class="danger" data-action="delete">
+                    <span>Delete</span>
+                    <span style="color: inherit; font-size: 0.8rem;">Del</span>
+                </button>
+            `;
+            document.body.appendChild(el);
+            popovers.itemMenu = el;
+            return el;
+        }
+
+        function ensureDropdown() {
+            if (popovers.dropdown) return popovers.dropdown;
+            const el = document.createElement('div');
+            el.id = 'dropdownMenu';
+            el.className = 'dropdown';
+            el.hidden = true;
+            el.innerHTML = `
+                <div class="dropdown-top">
+                    <div class="dropdown-title" id="dropdownTitle">Menu</div>
+                    <button class="dropdown-add" type="button" id="dropdownAdd" title="Add" aria-label="Add">
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true" style="width: 18px; height: 18px;">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m7-7H5"></path>
+                        </svg>
+                    </button>
+                </div>
+                <div class="dropdown-list" id="dropdownList"></div>
+            `;
+            document.body.appendChild(el);
+            popovers.dropdown = el;
+            return el;
+        }
+
+        function placePopover(el, anchorRect, prefer = 'bottom') {
+            const pad = 8;
+            const vw = window.innerWidth;
+            const vh = window.innerHeight;
+
+            el.style.left = '0px';
+            el.style.top = '0px';
+            el.hidden = false;
+
+            const rect = el.getBoundingClientRect();
+            let left = anchorRect.right - rect.width;
+            if (left < pad) left = pad;
+            if (left + rect.width > vw - pad) left = vw - pad - rect.width;
+
+            let top;
+            if (prefer === 'top') {
+                top = anchorRect.top - rect.height - 6;
+                if (top < pad) top = anchorRect.bottom + 6;
+            } else {
+                top = anchorRect.bottom + 6;
+                if (top + rect.height > vh - pad) top = anchorRect.top - rect.height - 6;
             }
+            if (top < pad) top = pad;
+            if (top + rect.height > vh - pad) top = vh - pad - rect.height;
+
+            el.style.left = `${left}px`;
+            el.style.top = `${top}px`;
+        }
+
+        // Lightweight selection UX (no persistence yet)
+        const currentProjectName = document.getElementById('currentProjectName');
+        const conversationList = document.getElementById('conversationList');
+
+        function activateIn(container, item) {
+            if (!container || !item) return;
+            container.querySelectorAll('.history-item').forEach(el => el.classList.remove('active'));
+            item.classList.add('active');
+        }
+
+        function getItemLabel(item) {
+            const label = item.querySelector('.item-label');
+            return label ? label.textContent.trim() : item.textContent.trim();
+        }
+        function setItemLabel(item, text) {
+            const label = item.querySelector('.item-label');
+            if (label) label.textContent = text;
+        }
+
+        // Click behavior: select unless menu button was clicked.
+        if (projectsList && currentProjectName) {
+            projectsList.addEventListener('click', (e) => {
+                const menuBtn = e.target.closest('.item-menu-btn');
+                if (menuBtn) return;
+                const item = e.target.closest('.history-item');
+                if (!item) return;
+                activateIn(projectsList, item);
+                currentProjectName.textContent = getItemLabel(item);
+            });
+        }
+
+        if (conversationList) {
+            conversationList.addEventListener('click', (e) => {
+                const menuBtn = e.target.closest('.item-menu-btn');
+                if (menuBtn) return;
+                const item = e.target.closest('.history-item');
+                if (!item) return;
+                activateIn(conversationList, item);
+            });
+        }
+
+        // Unique global context menu for both lists.
+        let currentMenuTarget = null;
+
+        function openItemMenu(btn, targetItem) {
+            closeAllPopovers();
+            currentMenuTarget = targetItem;
+            const menu = ensureItemMenu();
+            const rect = btn.getBoundingClientRect();
+            placePopover(menu, rect, 'bottom');
+        }
+
+        document.addEventListener('click', (e) => {
+            const btn = e.target.closest('.item-menu-btn');
+            if (btn) {
+                e.stopPropagation();
+                const item = btn.closest('.history-item');
+                if (!item) return;
+                openItemMenu(btn, item);
+                return;
+            }
+
+            const menu = popovers.itemMenu;
+            const dropdown = popovers.dropdown;
+            const inMenu = menu && !menu.hidden && menu.contains(e.target);
+            const inDropdown = dropdown && !dropdown.hidden && dropdown.contains(e.target);
+            const isToggle = e.target.closest('#modelBtn') || e.target.closest('#ragBtn');
+            if (!inMenu && !inDropdown && !isToggle) closeAllPopovers();
         });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closeAllPopovers();
+        });
+
+        // Handle menu actions
+        document.addEventListener('click', (e) => {
+            const menu = popovers.itemMenu;
+            if (!menu || menu.hidden) return;
+            const actionBtn = e.target.closest('button[data-action]');
+            if (!actionBtn) return;
+            const action = actionBtn.getAttribute('data-action');
+            const target = currentMenuTarget;
+            if (!target) return;
+
+            const kind = target.getAttribute('data-kind') || (target.classList.contains('project-item') ? 'project' : 'conversation');
+            if (action === 'rename') {
+                const oldName = getItemLabel(target);
+                const next = window.prompt(`Rename ${kind}`, oldName);
+                if (next && next.trim()) {
+                    setItemLabel(target, next.trim());
+                    if (kind === 'project' && target.classList.contains('active') && currentProjectName) {
+                        currentProjectName.textContent = next.trim();
+                    }
+                }
+            } else if (action === 'delete') {
+                const name = getItemLabel(target);
+                const ok = window.confirm(`Delete ${kind}: "${name}"?`);
+                if (ok) {
+                    const parent = target.parentElement;
+                    const wasActive = target.classList.contains('active');
+                    target.remove();
+
+                    if (kind === 'project' && wasActive && currentProjectName) {
+                        const first = parent ? parent.querySelector('.history-item') : null;
+                        if (first) {
+                            activateIn(parent, first);
+                            currentProjectName.textContent = getItemLabel(first);
+                        } else {
+                            currentProjectName.textContent = 'Untitled';
+                        }
+                    }
+                }
+            }
+            closeAllPopovers();
+        });
+
+        // Add conversation (+)
+        const addConversationBtn = document.getElementById('addConversationBtn');
+        if (addConversationBtn && conversationList) {
+            addConversationBtn.addEventListener('click', () => {
+                const item = document.createElement('div');
+                item.className = 'history-item conversation-item';
+                item.setAttribute('role', 'listitem');
+                item.setAttribute('tabindex', '0');
+                item.setAttribute('data-kind', 'conversation');
+                item.innerHTML = `
+                    <span class="item-label">New conversation</span>
+                    <button class="item-menu-btn" type="button" aria-label="Conversation menu" title="Menu">
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true" style="width: 18px; height: 18px;">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6l4 6-4 6"></path>
+                        </svg>
+                    </button>
+                `;
+                conversationList.prepend(item);
+                activateIn(conversationList, item);
+                item.focus();
+            });
+        }
+
+        // Model + RAG dropdowns (each list has a "+" at top)
+        const modelBtn = document.getElementById('modelBtn');
+        const modelBtnLabel = document.getElementById('modelBtnLabel');
+        const ragBtn = document.getElementById('ragBtn');
+
+        const modelOptions = ['GPT-5', 'GPT-4.1', 'o4-mini'];
+        const ragOptions = ['Knowledge Base', 'Project Files', 'Web Search (hybrid)'];
+
+        function openDropdown(kind, anchorEl) {
+            closeAllPopovers();
+            const dd = ensureDropdown();
+            const titleEl = dd.querySelector('#dropdownTitle');
+            const listEl = dd.querySelector('#dropdownList');
+            const addEl = dd.querySelector('#dropdownAdd');
+            titleEl.textContent = kind === 'model' ? 'Models' : 'RAG';
+
+            listEl.innerHTML = '';
+            const opts = kind === 'model' ? modelOptions : ragOptions;
+            for (const opt of opts) {
+                const b = document.createElement('button');
+                b.type = 'button';
+                b.className = 'dropdown-item';
+                b.textContent = opt;
+                b.addEventListener('click', () => {
+                    if (kind === 'model' && modelBtnLabel) modelBtnLabel.textContent = opt;
+                    if (kind === 'rag') ragBtn.classList.toggle('active', true);
+                    closeAllPopovers();
+                });
+                listEl.appendChild(b);
+            }
+
+            addEl.onclick = () => {
+                const label = window.prompt(kind === 'model' ? 'Add model' : 'Add RAG source', '');
+                if (!label || !label.trim()) return;
+                opts.unshift(label.trim());
+                openDropdown(kind, anchorEl);
+            };
+
+            const rect = anchorEl.getBoundingClientRect();
+            placePopover(dd, rect, 'top');
+        }
+
+        if (modelBtn) {
+            modelBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                openDropdown('model', modelBtn);
+            });
+        }
+        if (ragBtn) {
+            ragBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                openDropdown('rag', ragBtn);
+            });
+        }
     </script>
 </body>
 </html>

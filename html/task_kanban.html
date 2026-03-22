@@ -15,20 +15,252 @@
             overflow: hidden;
         }
 
-        /* 侧边栏 */
+        :root {
+            --bg: #fcfcfc;
+            --panel: #ffffff;
+            --sidebar-bg: #f7f7f8;
+            --text: #1a1a1a;
+            --muted: #71717a;
+            --muted-2: #a1a1aa;
+            --border: #e5e5e5;
+            --border-strong: #d4d4d8;
+            --hover: #e5e5e5;
+            --brand: #2563eb;
+            --focus-ring: 2px solid var(--brand);
+
+            --radius-sm: 0.5rem;
+            --radius-md: 0.75rem;
+        }
+
+        button:focus-visible,
+        a:focus-visible,
+        .history-item:focus-visible {
+            outline: var(--focus-ring);
+            outline-offset: 2px;
+        }
+
+        /* 左侧：Projects + Conversations */
         .sidebar {
-            width: 280px;
-            background-color: #f7f7f8;
-            border-right: 1px solid #e5e5e5;
+            width: 260px;
+            background-color: var(--sidebar-bg);
+            border-right: 1px solid var(--border);
             display: flex;
             flex-direction: column;
             padding: 1rem;
             flex-shrink: 0;
         }
-        .sidebar-header { margin-bottom: 2rem; font-size: 1.25rem; font-weight: 700; padding: 0 0.5rem; }
-        .nav-item { padding: 0.75rem 1rem; border-radius: 0.5rem; cursor: pointer; color: #4a4a4a; font-size: 0.95rem; display: flex; align-items: center; gap: 0.75rem; transition: all 0.2s; margin-bottom: 0.25rem; text-decoration: none; }
-        .nav-item:hover { background-color: #e5e5e5; color: #1a1a1a; }
-        .nav-item.active { background-color: #ffffff; color: #1a1a1a; font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+
+        .sidebar-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.25rem;
+        }
+
+        .new-project-btn {
+            flex-grow: 1;
+            padding: 0.5rem 0.75rem;
+            background-color: transparent;
+            color: var(--text);
+            border: 1px solid transparent;
+            border-radius: var(--radius-sm);
+            font-size: 0.95rem;
+            font-weight: 500;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: all 0.2s;
+        }
+        .new-project-btn:hover { background-color: var(--hover); }
+
+        .icon-btn-small {
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: var(--muted);
+            padding: 0.5rem;
+            border-radius: var(--radius-sm);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .icon-btn-small:hover { background-color: var(--hover); color: var(--text); }
+
+        .section-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.75rem;
+            padding: 0 0.5rem 0.5rem;
+        }
+
+        .section-title {
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: var(--muted-2);
+            letter-spacing: 0.02em;
+            text-transform: uppercase;
+            user-select: none;
+        }
+
+        .header-actions {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+
+        .header-plus-btn {
+            width: 28px;
+            height: 28px;
+            border-radius: var(--radius-sm);
+            border: 1px solid transparent;
+            background: transparent;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--muted);
+            transition: background-color 0.2s, color 0.2s;
+        }
+        .header-plus-btn:hover { background-color: var(--hover); color: var(--text); }
+
+        .section-toggle {
+            width: 28px;
+            height: 28px;
+            border-radius: var(--radius-sm);
+            border: 1px solid transparent;
+            background: transparent;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--muted);
+            transition: background-color 0.2s, color 0.2s;
+        }
+        .section-toggle:hover { background-color: var(--hover); color: var(--text); }
+        .section-toggle svg { transition: transform 0.2s ease; }
+        .section-toggle[aria-expanded="false"] svg { transform: rotate(-90deg); }
+
+        .project-pill {
+            margin: 0 0.5rem 0.75rem;
+            padding: 0.5rem 0.75rem;
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.75);
+            color: var(--text);
+            font-size: 0.9rem;
+            font-weight: 600;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .chat-history {
+            flex-grow: 1;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+
+        .history-item {
+            padding: 0.6rem 0.75rem;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            color: #4a4a4a;
+            font-size: 0.9rem;
+            transition: background-color 0.2s, color 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.5rem;
+        }
+        .history-item:hover { background-color: var(--hover); color: var(--text); }
+        .history-item.active { background-color: rgba(37, 99, 235, 0.08); color: var(--text); }
+        .history-item.conversation-item { padding-left: 1.5rem; position: relative; }
+        .history-item.conversation-item::before {
+            content: "";
+            position: absolute;
+            left: 0.75rem;
+            top: 50%;
+            width: 6px;
+            height: 6px;
+            border-radius: 999px;
+            background: var(--muted-2);
+            transform: translateY(-50%);
+        }
+
+        .item-label {
+            flex: 1;
+            min-width: 0;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .item-menu-btn {
+            width: 28px;
+            height: 28px;
+            padding: 0;
+            border-radius: var(--radius-sm);
+            border: 1px solid transparent;
+            background: transparent;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--muted);
+            opacity: 0;
+            transition: opacity 0.15s, background-color 0.2s, color 0.2s;
+            flex: 0 0 auto;
+        }
+        .history-item:hover .item-menu-btn,
+        .history-item:focus-within .item-menu-btn { opacity: 1; }
+        .item-menu-btn:hover { background-color: rgba(0,0,0,0.05); color: var(--text); }
+
+        .sidebar-footer {
+            margin-top: auto;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border);
+        }
+        .user-profile {
+            display: flex; align-items: center; gap: 0.75rem; padding: 0.5rem; cursor: pointer; border-radius: 0.5rem; transition: background-color 0.2s;
+        }
+        .user-profile:hover { background-color: var(--hover); }
+        .avatar-small {
+            width: 32px; height: 32px; border-radius: 50%; background-color: #1a1a1a; color: white; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: bold;
+        }
+
+        /* Global unique context menu (projects + conversations) */
+        .context-menu {
+            position: fixed;
+            z-index: 9999;
+            min-width: 180px;
+            padding: 0.35rem;
+            border-radius: var(--radius-md);
+            border: 1px solid var(--border);
+            background: #ffffff;
+            box-shadow: 0 18px 50px rgba(0,0,0,0.14);
+        }
+        .context-menu button {
+            width: 100%;
+            background: transparent;
+            border: 1px solid transparent;
+            padding: 0.55rem 0.6rem;
+            border-radius: 0.6rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.75rem;
+            color: var(--text);
+            font-size: 0.9rem;
+            text-align: left;
+        }
+        .context-menu button:hover { background-color: #f4f4f5; }
+        .context-menu .danger { color: #b91c1c; }
+        .context-menu .danger:hover { background-color: rgba(185, 28, 28, 0.08); }
 
         /* 主内容区 */
         .main-content {
@@ -47,7 +279,23 @@
             border-bottom: 1px solid #e5e5e5;
             flex-shrink: 0;
         }
+        .header-left { display: flex; align-items: center; gap: 0.75rem; }
         .header-title { font-size: 1.25rem; font-weight: 600; }
+
+        .back-btn {
+            width: 38px;
+            height: 38px;
+            border-radius: 0.75rem;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid #e5e5e5;
+            background: #ffffff;
+            color: #71717a;
+            text-decoration: none;
+            transition: background-color 0.2s, color 0.2s, border-color 0.2s;
+        }
+        .back-btn:hover { background-color: #f4f4f5; color: #1a1a1a; }
         
         .btn { padding: 0.5rem 1rem; border-radius: 0.5rem; font-size: 0.9rem; font-weight: 500; cursor: pointer; transition: all 0.2s; border: none; }
         .btn-primary { background-color: #1a1a1a; color: #ffffff; }
@@ -204,24 +452,121 @@
 </head>
 <body>
 
-    <!-- 侧边栏 -->
+    <!-- 左侧：Projects + Conversations（与 index_welcome 一致） -->
     <aside class="sidebar">
-        <div class="sidebar-header">Manus 工作台</div>
-        <nav>
-            <a href="manus_clone.html" class="nav-item">
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path></svg>
-                会话
-            </a>
-            <a href="#" class="nav-item active">
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path></svg>
-                任务队列看板
-            </a>
-        </nav>
+        <div class="sidebar-header">
+            <button class="new-project-btn" type="button" aria-label="New project">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                New project
+            </button>
+            <button class="icon-btn-small" type="button" title="收起侧边栏" aria-label="Collapse sidebar">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 19l-7-7 7-7m8 14l-7-7 7-7"></path></svg>
+            </button>
+        </div>
+        
+        <div class="section-row">
+            <div class="section-title">Current project</div>
+        </div>
+        <div class="project-pill" id="currentProjectName" title="Current project">Agent Work Platform</div>
+
+        <div class="section-row">
+            <div class="section-title">Conversations</div>
+            <div class="header-actions">
+                <button class="header-plus-btn" id="addConversationBtn" type="button" title="New conversation" aria-label="New conversation">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true" style="width: 18px; height: 18px;">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m7-7H5"></path>
+                    </svg>
+                </button>
+            </div>
+        </div>
+        <div class="chat-history" id="conversationList" role="list">
+            <div class="history-item conversation-item active" role="listitem" tabindex="0" data-kind="conversation">
+                <span class="item-label">Platform IA + layout</span>
+                <button class="item-menu-btn" type="button" aria-label="Conversation menu" title="Menu">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true" style="width: 18px; height: 18px;">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6l4 6-4 6"></path>
+                    </svg>
+                </button>
+            </div>
+            <div class="history-item conversation-item" role="listitem" tabindex="0" data-kind="conversation">
+                <span class="item-label">Agent routing rules</span>
+                <button class="item-menu-btn" type="button" aria-label="Conversation menu" title="Menu">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true" style="width: 18px; height: 18px;">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6l4 6-4 6"></path>
+                    </svg>
+                </button>
+            </div>
+            <div class="history-item conversation-item" role="listitem" tabindex="0" data-kind="conversation">
+                <span class="item-label">Tools + skills wiring</span>
+                <button class="item-menu-btn" type="button" aria-label="Conversation menu" title="Menu">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true" style="width: 18px; height: 18px;">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6l4 6-4 6"></path>
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <div class="section-row">
+            <div class="section-title">Previous days</div>
+            <button class="section-toggle" id="projectsToggle" type="button" aria-expanded="true" aria-controls="projectsList" title="Collapse/expand" aria-label="Collapse or expand projects">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                </svg>
+            </button>
+        </div>
+        <div class="chat-history" id="projectsList" style="flex-grow: 0;" role="list">
+            <div class="history-item active" role="listitem" tabindex="0" data-kind="project">
+                <span class="item-label">Agent Work Platform</span>
+                <button class="item-menu-btn" type="button" aria-label="Project menu" title="Menu">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true" style="width: 18px; height: 18px;">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6l4 6-4 6"></path>
+                    </svg>
+                </button>
+            </div>
+            <div class="history-item" role="listitem" tabindex="0" data-kind="project">
+                <span class="item-label">Personal Sandbox</span>
+                <button class="item-menu-btn" type="button" aria-label="Project menu" title="Menu">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true" style="width: 18px; height: 18px;">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6l4 6-4 6"></path>
+                    </svg>
+                </button>
+            </div>
+            <div class="history-item" role="listitem" tabindex="0" data-kind="project">
+                <span class="item-label">Client Research</span>
+                <button class="item-menu-btn" type="button" aria-label="Project menu" title="Menu">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true" style="width: 18px; height: 18px;">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6l4 6-4 6"></path>
+                    </svg>
+                </button>
+            </div>
+            <div class="history-item" role="listitem" tabindex="0" data-kind="project">
+                <span class="item-label">Ops Automation</span>
+                <button class="item-menu-btn" type="button" aria-label="Project menu" title="Menu">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true" style="width: 18px; height: 18px;">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6l4 6-4 6"></path>
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <div class="sidebar-footer">
+            <div class="user-profile">
+                <div class="avatar-small">U</div>
+                <span style="font-size: 0.9rem; font-weight: 500;">User Workspace</span>
+            </div>
+        </div>
     </aside>
 
     <main class="main-content">
         <header class="header">
-            <h1 class="header-title">任务队列 (Task Queue)</h1>
+            <div class="header-left">
+                <a class="back-btn" href="index_welcome.html" title="Back" aria-label="Back">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 18l-6-6 6-6"></path>
+                    </svg>
+                </a>
+                <h1 class="header-title">任务队列 (Task Queue)</h1>
+            </div>
             <div style="display: flex; gap: 1rem;">
                 <button class="btn" style="background: white; border: 1px solid #d4d4d8;">暂停调度</button>
                 <button class="btn btn-primary">+ 新建任务</button>
@@ -231,14 +576,14 @@
         <!-- 看板区域 -->
         <div class="kanban-board">
             
-            <!-- 列 1：排队中 -->
+            <!-- 列 1：schedule -->
             <div class="kanban-column">
                 <div class="column-header">
                     <div style="display: flex; align-items: center; gap: 0.5rem;">
                         <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background-color: #a1a1aa;"></span>
-                        排队中 (Queued)
+                        schedule
                     </div>
-                    <span class="column-count">2</span>
+                    <span class="column-count">1</span>
                 </div>
                 <div class="column-content">
                     
@@ -260,6 +605,19 @@
                         </div>
                     </div>
 
+                </div>
+            </div>
+
+            <!-- 列 2：queue -->
+            <div class="kanban-column">
+                <div class="column-header">
+                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                        <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background-color: #a1a1aa;"></span>
+                        queue
+                    </div>
+                    <span class="column-count">1</span>
+                </div>
+                <div class="column-content">
                     <div class="task-card">
                         <div class="task-header">
                             <span class="task-id">#TSK-893</span>
@@ -276,18 +634,17 @@
                             <span style="font-size: 0.75rem; color: #a1a1aa;">等待调度</span>
                         </div>
                     </div>
-
                 </div>
             </div>
 
-            <!-- 列 2：执行中 -->
+            <!-- 列 3：inprogress -->
             <div class="kanban-column">
                 <div class="column-header">
                     <div style="display: flex; align-items: center; gap: 0.5rem;">
                         <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background-color: #3b82f6; box-shadow: 0 0 0 2px #bfdbfe;"></span>
-                        执行中 (In Progress)
+                        inprogress
                     </div>
-                    <span class="column-count">1</span>
+                    <span class="column-count">2</span>
                 </div>
                 <div class="column-content">
                     
@@ -313,20 +670,6 @@
                         </div>
                     </div>
 
-                </div>
-            </div>
-
-            <!-- 列 3：需要确认 -->
-            <div class="kanban-column">
-                <div class="column-header">
-                    <div style="display: flex; align-items: center; gap: 0.5rem;">
-                        <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background-color: #eab308;"></span>
-                        需要确认 (Needs Input)
-                    </div>
-                    <span class="column-count">1</span>
-                </div>
-                <div class="column-content">
-                    
                     <div class="task-card" style="border-left: 3px solid #eab308; background-color: #fefce8;">
                         <div class="task-header">
                             <span class="task-id">#TSK-885</span>
@@ -347,14 +690,14 @@
                 </div>
             </div>
 
-            <!-- 列 4：已完成 -->
+            <!-- 列 4：done -->
             <div class="kanban-column">
                 <div class="column-header">
                     <div style="display: flex; align-items: center; gap: 0.5rem;">
                         <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background-color: #10b981;"></span>
-                        已完成 (Done)
+                        done
                     </div>
-                    <span class="column-count">3</span>
+                    <span class="column-count">1</span>
                 </div>
                 <div class="column-content">
                     
@@ -377,6 +720,192 @@
 
         </div>
     </main>
+
+    <script>
+        // Sidebar interactions: projects toggle, add conversation, and a single global context menu.
+        const projectsToggle = document.getElementById('projectsToggle');
+        const projectsList = document.getElementById('projectsList');
+        const conversationList = document.getElementById('conversationList');
+        const currentProjectName = document.getElementById('currentProjectName');
+        const addConversationBtn = document.getElementById('addConversationBtn');
+
+        function activateIn(container, item) {
+            if (!container || !item) return;
+            container.querySelectorAll('.history-item').forEach(el => el.classList.remove('active'));
+            item.classList.add('active');
+        }
+
+        function getItemLabel(item) {
+            const label = item.querySelector('.item-label');
+            return label ? label.textContent.trim() : item.textContent.trim();
+        }
+
+        function setItemLabel(item, text) {
+            const label = item.querySelector('.item-label');
+            if (label) label.textContent = text;
+        }
+
+        if (projectsToggle && projectsList) {
+            projectsToggle.addEventListener('click', () => {
+                const expanded = projectsToggle.getAttribute('aria-expanded') === 'true';
+                projectsToggle.setAttribute('aria-expanded', String(!expanded));
+                projectsList.hidden = expanded;
+            });
+        }
+
+        if (projectsList && currentProjectName) {
+            projectsList.addEventListener('click', (e) => {
+                const menuBtn = e.target.closest('.item-menu-btn');
+                if (menuBtn) return;
+                const item = e.target.closest('.history-item');
+                if (!item) return;
+                activateIn(projectsList, item);
+                currentProjectName.textContent = getItemLabel(item);
+            });
+        }
+
+        if (conversationList) {
+            conversationList.addEventListener('click', (e) => {
+                const menuBtn = e.target.closest('.item-menu-btn');
+                if (menuBtn) return;
+                const item = e.target.closest('.history-item');
+                if (!item) return;
+                activateIn(conversationList, item);
+            });
+        }
+
+        if (addConversationBtn && conversationList) {
+            addConversationBtn.addEventListener('click', () => {
+                const item = document.createElement('div');
+                item.className = 'history-item conversation-item';
+                item.setAttribute('role', 'listitem');
+                item.setAttribute('tabindex', '0');
+                item.setAttribute('data-kind', 'conversation');
+                item.innerHTML = `
+                    <span class="item-label">New conversation</span>
+                    <button class="item-menu-btn" type="button" aria-label="Conversation menu" title="Menu">
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true" style="width: 18px; height: 18px;">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6l4 6-4 6"></path>
+                        </svg>
+                    </button>
+                `;
+                conversationList.prepend(item);
+                activateIn(conversationList, item);
+                item.focus();
+            });
+        }
+
+        // Single global context menu for both projects and conversations
+        let itemMenu = null;
+        let currentMenuTarget = null;
+
+        function ensureItemMenu() {
+            if (itemMenu) return itemMenu;
+            const el = document.createElement('div');
+            el.className = 'context-menu';
+            el.hidden = true;
+            el.innerHTML = `
+                <button type="button" data-action="rename">
+                    <span>Rename</span>
+                    <span style="color: var(--muted); font-size: 0.8rem;">R</span>
+                </button>
+                <button type="button" class="danger" data-action="delete">
+                    <span>Delete</span>
+                    <span style="color: inherit; font-size: 0.8rem;">Del</span>
+                </button>
+            `;
+            document.body.appendChild(el);
+            itemMenu = el;
+            return el;
+        }
+
+        function placePopover(el, anchorRect) {
+            const pad = 8;
+            const vw = window.innerWidth;
+            const vh = window.innerHeight;
+
+            el.style.left = '0px';
+            el.style.top = '0px';
+            el.hidden = false;
+
+            const rect = el.getBoundingClientRect();
+            let left = anchorRect.right - rect.width;
+            if (left < pad) left = pad;
+            if (left + rect.width > vw - pad) left = vw - pad - rect.width;
+
+            let top = anchorRect.bottom + 6;
+            if (top + rect.height > vh - pad) top = anchorRect.top - rect.height - 6;
+            if (top < pad) top = pad;
+
+            el.style.left = `${left}px`;
+            el.style.top = `${top}px`;
+        }
+
+        function closeMenu() {
+            if (itemMenu) itemMenu.hidden = true;
+            currentMenuTarget = null;
+        }
+
+        document.addEventListener('click', (e) => {
+            const btn = e.target.closest('.item-menu-btn');
+            if (btn) {
+                e.stopPropagation();
+                const item = btn.closest('.history-item');
+                if (!item) return;
+                currentMenuTarget = item;
+                const menu = ensureItemMenu();
+                placePopover(menu, btn.getBoundingClientRect());
+                return;
+            }
+
+            if (itemMenu && !itemMenu.hidden && itemMenu.contains(e.target)) return;
+            closeMenu();
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closeMenu();
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!itemMenu || itemMenu.hidden) return;
+            const actionBtn = e.target.closest('button[data-action]');
+            if (!actionBtn) return;
+            const action = actionBtn.getAttribute('data-action');
+            const target = currentMenuTarget;
+            if (!target) return;
+
+            const kind = target.getAttribute('data-kind') === 'project' ? 'project' : 'conversation';
+            if (action === 'rename') {
+                const oldName = getItemLabel(target);
+                const next = window.prompt(`Rename ${kind}`, oldName);
+                if (next && next.trim()) {
+                    setItemLabel(target, next.trim());
+                    if (kind === 'project' && target.classList.contains('active') && currentProjectName) {
+                        currentProjectName.textContent = next.trim();
+                    }
+                }
+            } else if (action === 'delete') {
+                const name = getItemLabel(target);
+                const ok = window.confirm(`Delete ${kind}: "${name}"?`);
+                if (ok) {
+                    const parent = target.parentElement;
+                    const wasActive = target.classList.contains('active');
+                    target.remove();
+
+                    if (kind === 'project' && wasActive && currentProjectName) {
+                        const first = parent ? parent.querySelector('.history-item') : null;
+                        if (first) {
+                            activateIn(parent, first);
+                            currentProjectName.textContent = getItemLabel(first);
+                        } else {
+                            currentProjectName.textContent = 'Untitled';
+                        }
+                    }
+                }
+            }
+            closeMenu();
+        });
+    </script>
 
 </body>
 </html>

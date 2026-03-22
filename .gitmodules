@@ -1,0 +1,3 @@
+[submodule "third_party/agency-agents"]
+	path = third_party/agency-agents
+	url = https://github.com/msitarzewski/agency-agents

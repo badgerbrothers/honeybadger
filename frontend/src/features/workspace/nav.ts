@@ -5,6 +5,7 @@ import {
   ClipboardList,
   LayoutDashboard,
   MessageSquare,
+  Network,
   Settings,
   Wrench,
 } from "lucide-react";
@@ -22,6 +23,7 @@ export const workspaceNavItems: WorkspaceNavItem[] = [
   { href: "/runs/demo", label: "执行画板", icon: Boxes },
   { href: "/artifacts", label: "产出物库", icon: BookOpenText },
   { href: "/knowledge", label: "知识库与记忆", icon: BookOpenText },
-  { href: "/tools", label: "工具与技能", icon: Wrench },
+  { href: "/tools-skills", label: "工具与技能", icon: Wrench },
   { href: "/settings", label: "系统设置", icon: Settings },
+  { href: "/rag", label: "RAG", icon: Network },
 ];
