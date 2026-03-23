@@ -1,3 +1,5 @@
+name: project4
+
 services:
   postgres:
     image: pgvector/pgvector:pg15
@@ -14,6 +16,8 @@ services:
       interval: 5s
       timeout: 5s
       retries: 20
+    cpus: "1.0"
+    mem_limit: 1g
 
   redis:
     image: redis:7
@@ -26,6 +30,8 @@ services:
       interval: 5s
       timeout: 3s
       retries: 20
+    cpus: "0.5"
+    mem_limit: 512m
 
   minio:
     image: minio/minio:latest
@@ -38,6 +44,8 @@ services:
       - "9001:9001"
     volumes:
       - minio_data:/data
+    cpus: "0.5"
+    mem_limit: 512m
 
   rabbitmq:
     image: rabbitmq:3-management
@@ -55,6 +63,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
+    cpus: "0.5"
+    mem_limit: 1g
 
   auth-service:
     build:
@@ -79,6 +89,8 @@ services:
       interval: 5s
       timeout: 5s
       retries: 20
+    cpus: "0.5"
+    mem_limit: 768m
 
   project-service:
     build:
@@ -121,6 +133,8 @@ services:
       interval: 5s
       timeout: 5s
       retries: 20
+    cpus: "0.75"
+    mem_limit: 768m
 
   task-service:
     build:
@@ -149,8 +163,12 @@ services:
       JWT_AUDIENCE: ${JWT_AUDIENCE:-badgers-services}
       AUTH_SERVICE_URL: ${AUTH_SERVICE_URL:-http://auth-service:8080}
       INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-dev-internal-token}
+      ROLES_DIR: /app/shared/roles
+      SKILLS_DIR: /app/shared/skills
     ports:
       - "8002:8000"
+    volumes:
+      - ./shared:/app/shared:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -165,6 +183,8 @@ services:
       interval: 5s
       timeout: 5s
       retries: 20
+    cpus: "0.75"
+    mem_limit: 768m
 
   rag-service:
     build:
@@ -205,6 +225,8 @@ services:
       interval: 5s
       timeout: 5s
       retries: 20
+    cpus: "0.5"
+    mem_limit: 1g
 
   storage-service:
     build:
@@ -219,6 +241,8 @@ services:
       - "8005:8000"
     depends_on:
       - minio
+    cpus: "0.5"
+    mem_limit: 512m
 
   api-gateway:
     build:
@@ -237,6 +261,8 @@ services:
         condition: service_healthy
       storage-service:
         condition: service_started
+    cpus: "0.5"
+    mem_limit: 256m
 
   worker-taskrun:
     build:
@@ -280,6 +306,8 @@ services:
         condition: service_started
       rabbitmq:
         condition: service_healthy
+    cpus: "0.5"
+    mem_limit: 1g
 
   worker-indexjob:
     build:
@@ -319,6 +347,8 @@ services:
         condition: service_started
       rabbitmq:
         condition: service_healthy
+    cpus: "0.5"
+    mem_limit: 1g
 
   frontend:
     build:
@@ -327,7 +357,8 @@ services:
     working_dir: /app
     command: npm run dev -- --hostname 0.0.0.0 --port 3000
     environment:
-      NEXT_PUBLIC_API_URL: http://localhost/api
+      NEXT_PUBLIC_API_URL: /api
+      API_PROXY_TARGET: http://api-gateway:80
       NEXT_PUBLIC_WS_URL: ws://localhost
     ports:
       - "3000:3000"
@@ -337,6 +368,8 @@ services:
     depends_on:
       api-gateway:
         condition: service_started
+    cpus: "0.5"
+    mem_limit: 768m
 
 volumes:
   postgres_data:
