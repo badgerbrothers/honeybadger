@@ -1,248 +1,170 @@
 ﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>RAG 工作台 - Manus Clone</title>
-  <style>
-    *{box-sizing:border-box;margin:0;padding:0}
-    body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;display:flex;height:100vh;background:#fcfcfc;color:#1a1a1a;overflow:hidden}
-    .sidebar{width:280px;background:#f7f7f8;border-right:1px solid #e5e5e5;display:flex;flex-direction:column;padding:1rem;flex-shrink:0}
-    .sidebar-header{margin-bottom:2rem;font-size:1.25rem;font-weight:700;padding:0 .5rem}
-    .nav-item{padding:.75rem 1rem;border-radius:.5rem;color:#4a4a4a;font-size:.95rem;display:flex;align-items:center;gap:.75rem;transition:.2s;margin-bottom:.25rem;text-decoration:none}
-    .nav-item:hover{background:#e5e5e5;color:#1a1a1a}
-    .nav-item.active{background:#fff;color:#1a1a1a;font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,.05)}
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>产出物库 - Manus Clone</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            display: flex;
+            height: 100vh;
+            background-color: #fcfcfc;
+            color: #1a1a1a;
+        }
 
-    .main-content{flex:1;display:flex;flex-direction:column;background:#fff;overflow:hidden}
-    .header{height:70px;padding:0 2rem;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #e5e5e5;position:sticky;top:0;background:rgba(255,255,255,.9);z-index:10}
-    .header-title{font-size:1.25rem;font-weight:600}
-    .content-area{padding:1.25rem 1.5rem;max-width:1400px;width:100%;margin:0 auto;height:calc(100vh - 70px);overflow:hidden}
+        /* 侧边栏 (复用) */
+        .sidebar {
+            width: 280px; background-color: #f7f7f8; border-right: 1px solid #e5e5e5; display: flex; flex-direction: column; padding: 1rem; flex-shrink: 0;
+        }
+        .sidebar-header { margin-bottom: 2rem; font-size: 1.25rem; font-weight: 700; padding: 0 0.5rem; color: #1a1a1a; }
+        .nav-item { padding: 0.75rem 1rem; border-radius: 0.5rem; cursor: pointer; color: #4a4a4a; font-size: 0.95rem; display: flex; align-items: center; gap: 0.75rem; transition: all 0.2s; margin-bottom: 0.25rem; text-decoration: none; }
+        .nav-item:hover { background-color: #e5e5e5; color: #1a1a1a; }
+        .nav-item.active { background-color: #ffffff; color: #1a1a1a; font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
 
-    .toolbar{display:flex;justify-content:space-between;align-items:center;gap:.75rem;flex-wrap:wrap;margin-bottom:1rem}
-    .toolbar-left,.toolbar-right{display:flex;gap:.6rem;flex-wrap:wrap;align-items:center}
-    .pill{display:inline-flex;align-items:center;gap:.4rem;padding:.5rem .7rem;border:1px solid #e5e5e5;border-radius:999px;background:#fff;font-size:.85rem}
-    .pill strong{font-weight:700}
-    .pill select,.pill input{border:none;outline:none;background:transparent;font-size:.85rem}
-    .pill input{width:52px}
-    .btn{border:1px solid #e5e5e5;background:#fff;color:#111;padding:.5rem .75rem;border-radius:.7rem;font-size:.86rem;font-weight:600;cursor:pointer}
-    .btn.primary{background:#111;color:#fff;border-color:#111}
+        .main-content { flex-grow: 1; display: flex; flex-direction: column; background-color: #ffffff; overflow-y: auto; }
+        .header { height: 70px; padding: 0 2rem; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #e5e5e5; position: sticky; top: 0; background: rgba(255,255,255,0.9); z-index: 10; backdrop-filter: blur(8px);}
+        .header-title { font-size: 1.25rem; font-weight: 600; }
 
-    .rag-shell{height:calc(100% - 56px);display:grid;grid-template-columns:300px 1fr 350px;gap:.9rem;min-height:0}
-    .panel{border:1px solid #e5e5e5;border-radius:1rem;background:#fff;display:flex;flex-direction:column;overflow:hidden;min-height:0}
-    .panel-header{padding:.85rem 1rem;border-bottom:1px solid #e5e5e5;background:#fafafa;font-size:.94rem;font-weight:700;display:flex;justify-content:space-between;align-items:center}
-    .panel-body{padding:1rem;overflow:auto;min-height:0}
-    .panel-body::-webkit-scrollbar{width:8px}.panel-body::-webkit-scrollbar-thumb{background:#d4d4d8;border-radius:8px}
+        .content-area { padding: 2rem; max-width: 1200px; width: 100%; margin: 0 auto; }
 
-    .kb-search{position:relative;margin-bottom:.6rem}
-    .kb-search input{width:100%;padding:.62rem .8rem .62rem 2.1rem;border:1px solid #d4d4d8;border-radius:.75rem;outline:none;font-size:.9rem}
-    .kb-search svg{position:absolute;left:10px;top:50%;transform:translateY(-50%);width:16px;height:16px;color:#a1a1aa}
-    .kb-item{padding:.68rem .75rem;border:1px solid #e5e5e5;border-radius:.75rem;margin-bottom:.5rem;cursor:pointer}
-    .kb-item.active{border-color:#c7d2fe;background:#eef2ff}
-    .kb-name{font-size:.9rem;font-weight:700;margin-bottom:.2rem}
-    .kb-meta{font-size:.78rem;color:#71717a;display:flex;justify-content:space-between}
+        /* 工具栏 */
+        .toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
+        .search-box {
+            position: relative; width: 300px;
+        }
+        .search-input {
+            width: 100%; padding: 0.6rem 1rem 0.6rem 2.5rem; border: 1px solid #d4d4d8; border-radius: 2rem; outline: none; font-size: 0.9rem; transition: border-color 0.2s;
+        }
+        .search-input:focus { border-color: #a1a1aa; }
+        .search-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: #a1a1aa; width: 18px; height: 18px; }
 
-    .msg{border:1px solid #e5e5e5;border-radius:.95rem;padding:.8rem .9rem;margin-bottom:.7rem}
-    .msg.user{background:#fafafa}
-    .role{font-size:.74rem;text-transform:uppercase;letter-spacing:.05em;font-weight:800;color:#71717a;margin-bottom:.35rem}
-    .text{font-size:.94rem;line-height:1.55;white-space:pre-wrap}
-    .citations{margin-top:.55rem;display:flex;gap:.4rem;flex-wrap:wrap}
-    .cite{display:inline-flex;gap:.35rem;align-items:center;padding:.2rem .45rem;border:1px solid #e5e5e5;border-radius:999px;background:#fff;font-size:.78rem;cursor:pointer}
-    .cite span:first-child{width:17px;height:17px;border-radius:50%;background:#111;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:.72rem}
+        /* 文件网格 */
+        .file-grid {
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 1.5rem;
+        }
+        .file-card {
+            border: 1px solid #e5e5e5; border-radius: 1rem; overflow: hidden; background: #ffffff; transition: box-shadow 0.2s, transform 0.2s; cursor: pointer; display: flex; flex-direction: column;
+        }
+        .file-card:hover { box-shadow: 0 8px 24px rgba(0,0,0,0.06); transform: translateY(-2px); border-color: #d4d4d8; }
+        
+        .file-preview {
+            height: 140px; background-color: #f4f4f5; display: flex; align-items: center; justify-content: center; border-bottom: 1px solid #e5e5e5; position: relative;
+        }
+        .file-preview.code { background-color: #1e1e1e; color: #d4d4d8; align-items: flex-start; justify-content: flex-start; padding: 1rem; font-family: monospace; font-size: 0.75rem; overflow: hidden; }
+        .file-preview.image { background-image: linear-gradient(45deg, #f3f4f6 25%, transparent 25%, transparent 75%, #f3f4f6 75%, #f3f4f6), linear-gradient(45deg, #f3f4f6 25%, transparent 25%, transparent 75%, #f3f4f6 75%, #f3f4f6); background-size: 20px 20px; background-position: 0 0, 10px 10px; }
+        
+        .file-icon-large { width: 48px; height: 48px; color: #71717a; }
+        
+        .file-info { padding: 1rem; }
+        .file-name { font-weight: 600; font-size: 0.95rem; margin-bottom: 0.25rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #1a1a1a; }
+        .file-meta { font-size: 0.8rem; color: #71717a; display: flex; justify-content: space-between; }
+        
+        .task-tag {
+            display: inline-block; font-size: 0.7rem; padding: 0.15rem 0.5rem; background-color: #f3f4f6; border-radius: 1rem; color: #4b5563; margin-top: 0.75rem; border: 1px solid #e5e5e5;
+        }
 
-    .composer{margin-top:.8rem;border-top:1px solid #e5e5e5;padding-top:.8rem}
-    .input-container{border:1px solid #d4d4d8;border-radius:1rem;padding:.45rem;background:#fff}
-    .input-textarea{width:100%;border:none;outline:none;resize:none;min-height:66px;max-height:170px;font-size:.98rem;line-height:1.5;padding:.65rem .8rem .35rem;background:transparent}
-    .input-toolbar{display:flex;justify-content:space-between;align-items:center;padding:.1rem .3rem .3rem}
-    .tools-left{display:flex;gap:.2rem;align-items:center}
-    .tool-btn{background:none;border:1px solid transparent;padding:.36rem .62rem;border-radius:.55rem;font-size:.82rem;font-weight:600;color:#71717a;cursor:pointer}
-    .tool-btn.active,.tool-btn:hover{background:#f4f4f5;color:#2563eb;border-color:#e5e5e5}
-    .send-btn{width:36px;height:36px;border:none;border-radius:50%;background:#111;color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer}
-    .send-btn[disabled]{opacity:.5;cursor:not-allowed}
-
-    .chunk{border:1px solid #e5e5e5;border-radius:.9rem;padding:.75rem .8rem;margin-bottom:.65rem}
-    .chunk.active{border-color:#c7d2fe;background:#eef2ff}
-    .chunk-top{display:flex;justify-content:space-between;gap:.6rem;margin-bottom:.3rem}
-    .chunk-src{font-size:.84rem;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-    .chunk-score{font-size:.78rem;color:#71717a;flex-shrink:0}
-    .chunk-text{font-size:.9rem;line-height:1.5;color:#374151}
-
-    @media (max-width:1100px){.rag-shell{grid-template-columns:280px 1fr}.panel.evidence{display:none}}
-    @media (max-width:900px){.sidebar{display:none}.content-area{height:calc(100vh - 70px)}.rag-shell{grid-template-columns:1fr;height:calc(100% - 96px)}}
-    svg{width:1.1rem;height:1.1rem}
-  </style>
+        svg { width: 1.25rem; height: 1.25rem; }
+    </style>
 </head>
 <body>
-  <aside class="sidebar">
-    <div class="sidebar-header">Manus 工作台</div>
-    <nav>
-      <a href="dashboard.html" class="nav-item"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path></svg>任务看板</a>
-      <a href="manus_clone.html" class="nav-item"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path></svg>工作区会话</a>
-      <a href="#" class="nav-item active"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"></path></svg>RAG 工作台</a>
-      <a href="settings.html" class="nav-item"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path></svg>设置</a>
-    </nav>
-  </aside>
+    <aside class="sidebar">
+        <div class="sidebar-header">Manus 工作台</div>
+        <nav>
+            <a href="dashboard.html" class="nav-item">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path></svg>
+                任务看板
+            </a>
+            <a href="manus_clone.html" class="nav-item">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path></svg>
+                工作区会话
+            </a>
+            <a href="#" class="nav-item active">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"></path></svg>
+                产出物库
+            </a>
+            <a href="settings.html" class="nav-item">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path></svg>
+                设置
+            </a>
+        </nav>
+    </aside>
 
-  <main class="main-content">
-    <header class="header">
-      <h1 class="header-title">RAG 工作台（Retrieval-Augmented Generation）</h1>
-      <div style="display:flex;gap:.5rem"><button id="btnClear" class="btn">清空</button><button id="btnRun" class="btn primary">Run RAG</button></div>
-    </header>
+    <main class="main-content">
+        <header class="header">
+            <h1 class="header-title">产出物库 (Artifacts)</h1>
+        </header>
 
-    <div class="content-area">
-      <div class="toolbar">
-        <div class="toolbar-left">
-          <div class="pill"><strong>KB</strong><select id="kbSelect"><option>Company Handbook</option><option>Product Docs</option><option>Support KB</option></select></div>
-          <div class="pill"><strong>Retriever</strong><select id="retriever"><option>Hybrid</option><option>Vector</option><option>BM25</option></select></div>
-          <div class="pill"><strong>TopK</strong><input id="topK" type="number" min="1" max="20" value="6"></div>
-          <div class="pill"><strong>Rerank</strong><select id="rerank"><option>On</option><option>Off</option></select></div>
-        </div>
-        <div class="toolbar-right"><div class="pill"><strong>Answer</strong><select><option>Grounded + citations</option><option>Brief</option></select></div></div>
-      </div>
-
-      <section class="rag-shell">
-        <div class="panel">
-          <div class="panel-header">知识库与索引 <span id="kbCount" style="font-size:.8rem;color:#71717a">0 docs</span></div>
-          <div class="panel-body">
-            <div class="kb-search"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg><input id="kbSearch" type="text" placeholder="搜索文档 / tag..."></div>
-            <div id="kbList"></div>
-          </div>
-        </div>
-
-        <div class="panel">
-          <div class="panel-header">问答 <span id="runMeta" style="font-size:.8rem;color:#71717a">ready</span></div>
-          <div class="panel-body">
-            <div id="chatStream">
-              <div class="msg"><div class="role">assistant</div><div class="text">RAG 页面核心是：先检索证据，再生成带引用答案。先输入问题试一下。</div></div>
-            </div>
-
-            <div class="composer">
-              <form id="composerForm">
-                <div class="input-container">
-                  <textarea id="queryInput" class="input-textarea" rows="3" placeholder="输入问题，例如：总结报销政策并标注引用来源"></textarea>
-                  <div class="input-toolbar">
-                    <div class="tools-left"><button type="button" class="tool-btn active">Search</button><button type="button" class="tool-btn">Code</button><button type="button" class="tool-btn">Cite</button></div>
-                    <button id="sendBtn" class="send-btn" type="submit" disabled><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M12 5l7 7-7 7"></path></svg></button>
-                  </div>
+        <div class="content-area">
+            <div class="toolbar">
+                <div style="display: flex; gap: 1rem;">
+                    <select style="padding: 0.5rem; border-radius: 0.5rem; border: 1px solid #d4d4d8; outline: none; background: white;">
+                        <option>全部分类</option>
+                        <option>代码文件 (.py, .js)</option>
+                        <option>数据表格 (.csv, .xlsx)</option>
+                        <option>文档 (.md, .pdf)</option>
+                    </select>
                 </div>
-              </form>
-              <div style="display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.6rem">
-                <button id="s1" class="btn" type="button">总结报销政策要点并给出处</button>
-                <button id="s2" class="btn" type="button">上线 checklist 有哪些？请引用</button>
-              </div>
+                <div class="search-box">
+                    <svg class="search-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                    <input type="text" class="search-input" placeholder="搜索文件名或关联任务...">
+                </div>
             </div>
-          </div>
+
+            <div class="file-grid">
+                <!-- Python 代码文件 -->
+                <div class="file-card">
+                    <div class="file-preview code">
+def fetch_hn():<br>
+&nbsp;&nbsp;url = "https://hacker-news.firebaseio.com/v0/topstories.json"<br>
+&nbsp;&nbsp;response = requests.get(url)<br>
+&nbsp;&nbsp;return response.json()[:10]
+                    </div>
+                    <div class="file-info">
+                        <div class="file-name">hn_scraper.py</div>
+                        <div class="file-meta"><span>1.2 KB</span><span>10 分钟前</span></div>
+                        <div class="task-tag">关联任务: 爬取 HN 标题</div>
+                    </div>
+                </div>
+
+                <!-- CSV 数据文件 -->
+                <div class="file-card">
+                    <div class="file-preview">
+                        <svg class="file-icon-large" style="color: #16a34a;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                    </div>
+                    <div class="file-info">
+                        <div class="file-name">top_news_20260318.csv</div>
+                        <div class="file-meta"><span>4.5 KB</span><span>8 分钟前</span></div>
+                        <div class="task-tag">关联任务: 爬取 HN 标题</div>
+                    </div>
+                </div>
+
+                <!-- 生成的图片 -->
+                <div class="file-card">
+                    <div class="file-preview image">
+                        <svg class="file-icon-large" style="color: #2563eb;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                    </div>
+                    <div class="file-info">
+                        <div class="file-name">revenue_chart_q1.png</div>
+                        <div class="file-meta"><span>128 KB</span><span>2 小时前</span></div>
+                        <div class="task-tag">关联任务: 财报数据可视化</div>
+                    </div>
+                </div>
+
+                <!-- Markdown 文档 -->
+                <div class="file-card">
+                    <div class="file-preview" style="background-color: #fafafa; border-left: 4px solid #ea580c;">
+                        <svg class="file-icon-large" style="color: #ea580c;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                    </div>
+                    <div class="file-info">
+                        <div class="file-name">PRD_Manus_Clone.md</div>
+                        <div class="file-meta"><span>12 KB</span><span>昨天</span></div>
+                        <div class="task-tag">关联任务: 编写产品需求文档</div>
+                    </div>
+                </div>
+            </div>
         </div>
-
-        <div class="panel evidence">
-          <div class="panel-header">检索证据 Chunks <span id="chunkMeta" style="font-size:.8rem;color:#71717a">0 chunks</span></div>
-          <div class="panel-body"><div id="chunkList" style="color:#71717a;font-size:.9rem;line-height:1.5">运行一次 RAG 后，这里会显示召回片段、score 与来源。</div></div>
-        </div>
-      </section>
-    </div>
-  </main>
-
-  <script>
-    const docs = [
-      {id:"d1",name:"Expense Policy",updated:"2026-03-10",chunks:142},
-      {id:"d2",name:"Grounding Guardrails",updated:"2026-03-12",chunks:44},
-      {id:"d3",name:"RAG Architecture",updated:"2026-03-18",chunks:76},
-      {id:"d4",name:"Index Refresh Runbook",updated:"2026-03-14",chunks:51},
-      {id:"d5",name:"Release Checklist",updated:"2026-03-21",chunks:33}
-    ];
-
-    const kbList = document.getElementById("kbList");
-    const kbSearch = document.getElementById("kbSearch");
-    const kbCount = document.getElementById("kbCount");
-    const chunkList = document.getElementById("chunkList");
-    const chunkMeta = document.getElementById("chunkMeta");
-    const chatStream = document.getElementById("chatStream");
-    const queryInput = document.getElementById("queryInput");
-    const sendBtn = document.getElementById("sendBtn");
-    const runMeta = document.getElementById("runMeta");
-
-    function esc(s){return String(s).replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;")}
-
-    function renderDocs(filter=""){
-      const f = filter.trim().toLowerCase();
-      const rows = docs.filter(d => !f || (d.name.toLowerCase().includes(f)));
-      kbCount.textContent = rows.length + " docs";
-      kbList.innerHTML = rows.map((d,i)=>`<div class="kb-item ${i===0?"active":""}"><div class="kb-name">${esc(d.name)}</div><div class="kb-meta"><span>${esc(d.updated)}</span><span>${d.chunks} chunks</span></div></div>`).join("");
-    }
-
-    function retrieve(query, k){
-      const base = [
-        {id:"c1",src:"Expense Policy §2.3",score:0.92,text:"报销应在消费后 30 天内提交，超期需主管审批。"},
-        {id:"c2",src:"Expense Policy §3.1",score:0.88,text:"交通与住宿需发票或替代凭证，并附说明。"},
-        {id:"c3",src:"Grounding Guardrails",score:0.84,text:"若证据不足，应明确说明并请求补充信息。"},
-        {id:"c4",src:"RAG Architecture",score:0.81,text:"推荐流程：query rewrite -> retrieve -> rerank -> grounded answer。"},
-        {id:"c5",src:"Release Checklist",score:0.78,text:"上线前需完成回归测试、灰度、回滚预案。"}
-      ];
-      const n = Math.max(1, Math.min(Number(k||6), 20));
-      const offset = query.length % base.length;
-      return base.slice(offset).concat(base.slice(0,offset)).slice(0,n);
-    }
-
-    function renderChunks(chunks){
-      chunkMeta.textContent = chunks.length + " chunks";
-      if(!chunks.length){chunkList.innerHTML='未检索到结果'; return;}
-      chunkList.innerHTML = chunks.map(c=>`<div class="chunk" id="chunk-${c.id}"><div class="chunk-top"><div class="chunk-src">${esc(c.src)}</div><div class="chunk-score">score ${c.score.toFixed(2)}</div></div><div class="chunk-text">${esc(c.text)}</div></div>`).join("");
-    }
-
-    function appendMsg(role,text,cites=[]){
-      const citeHtml = cites.length ? `<div class="citations">${cites.map((c,i)=>`<button class="cite" type="button" data-chunk="${c.id}"><span>${i+1}</span><span>${esc(c.src)}</span></button>`).join("")}</div>` : "";
-      chatStream.insertAdjacentHTML("beforeend", `<div class="msg ${role==='user'?'user':''}"><div class="role">${role}</div><div class="text">${esc(text)}</div>${citeHtml}</div>`);
-      chatStream.parentElement.scrollTop = chatStream.parentElement.scrollHeight;
-    }
-
-    function runRag(q){
-      const k = document.getElementById("topK").value || 6;
-      const t0 = performance.now();
-      const chunks = retrieve(q,k);
-      renderChunks(chunks);
-      appendMsg("user", q);
-      appendMsg("assistant", "基于检索证据：\n1. 报销提交有时效要求，通常 30 天内完成。[1]\n2. 凭证不完整时需要补充替代材料。[2]\n3. 若证据不足应显式声明，不可臆造。[3]", chunks.slice(0,3));
-      runMeta.textContent = "done in " + Math.round(performance.now() - t0) + "ms";
-    }
-
-    function syncSend(){ sendBtn.disabled = !queryInput.value.trim(); }
-
-    renderDocs();
-    kbSearch.addEventListener("input", ()=>renderDocs(kbSearch.value));
-    queryInput.addEventListener("input", syncSend);
-
-    document.getElementById("composerForm").addEventListener("submit", (e)=>{
-      e.preventDefault();
-      const q = queryInput.value.trim();
-      if(!q) return;
-      runRag(q);
-      queryInput.value = "";
-      syncSend();
-    });
-
-    document.getElementById("btnRun").addEventListener("click", ()=>{
-      const q = queryInput.value.trim();
-      if(!q){queryInput.focus(); return;}
-      runRag(q); queryInput.value=""; syncSend();
-    });
-
-    document.getElementById("btnClear").addEventListener("click", ()=>{
-      chatStream.innerHTML = '<div class="msg"><div class="role">assistant</div><div class="text">RAG 页面核心是：先检索证据，再生成带引用答案。先输入问题试一下。</div></div>';
-      renderChunks([]);
-      runMeta.textContent = "ready";
-      queryInput.value = "";
-      syncSend();
-    });
-
-    document.getElementById("s1").addEventListener("click", ()=>{queryInput.value="总结报销政策要点并给出处"; syncSend(); queryInput.focus();});
-    document.getElementById("s2").addEventListener("click", ()=>{queryInput.value="上线 checklist 有哪些？请引用"; syncSend(); queryInput.focus();});
-
-    chatStream.addEventListener("click", (e)=>{
-      const c = e.target.closest(".cite");
-      if(!c) return;
-      document.querySelectorAll(".chunk").forEach(el=>el.classList.remove("active"));
-      const target = document.getElementById("chunk-" + c.dataset.chunk);
-      if(target){target.classList.add("active"); target.scrollIntoView({behavior:"smooth",block:"nearest"});}
-    });
-  </script>
+    </main>
 </body>
 </html>

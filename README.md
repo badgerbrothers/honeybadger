@@ -155,18 +155,20 @@ npm run dev
 
 ## Testing
 
-Backend:
-
-```bash
-cd backend
-uv run pytest tests/test_contract_projects.py tests/test_contract_execution_apis.py -v
-```
-
 Worker:
 
 ```bash
 cd worker
 uv run pytest tests/test_main.py tests/test_agent.py tests/test_models_factory.py -v
+```
+
+Service smoke checks (with compose stack running):
+
+```bash
+curl http://localhost/api/auth/health
+curl http://localhost:8001/health
+curl http://localhost:8002/health
+curl http://localhost:8003/health
 ```
 
 ## End-to-End Verification Checklist
