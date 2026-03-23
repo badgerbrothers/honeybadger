@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { useRag } from "./RagContext";
@@ -18,13 +19,23 @@ function isTextLike(mimeType: string, name: string) {
 }
 
 export function RagDetailPage({ ragId }: { ragId: string }) {
-  const { rags, selectRag, ragFilesByRag, activeFileIdByRag, selectFile, uploadFiles, bindRagToActiveProject } =
-    useRag();
+  const router = useRouter();
+  const {
+    rags,
+    selectRag,
+    renameRag,
+    deleteRag,
+    ragFilesByRag,
+    activeFileIdByRag,
+    selectFile,
+    uploadFiles,
+  } = useRag();
   const [previewFileId, setPreviewFileId] = useState<string | null>(null);
   const uploadInputRef = useRef<HTMLInputElement | null>(null);
+  const actionMenuRef = useRef<HTMLDivElement | null>(null);
   const [uploading, setUploading] = useState(false);
-  const [binding, setBinding] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
+  const [actionsOpen, setActionsOpen] = useState(false);
 
   useEffect(() => {
     selectRag(ragId);
@@ -51,6 +62,25 @@ export function RagDetailPage({ ragId }: { ragId: string }) {
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [previewFileId]);
 
+  useEffect(() => {
+    if (!actionsOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setActionsOpen(false);
+    };
+    const onMouseDown = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!actionMenuRef.current) return;
+      if (actionMenuRef.current.contains(target)) return;
+      setActionsOpen(false);
+    };
+    document.addEventListener("keydown", onKeyDown);
+    document.addEventListener("mousedown", onMouseDown);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      document.removeEventListener("mousedown", onMouseDown);
+    };
+  }, [actionsOpen]);
+
   if (!rag) {
     return (
       <>
@@ -68,11 +98,69 @@ export function RagDetailPage({ ragId }: { ragId: string }) {
   return (
     <>
       <header className="manus-page-header">
-        <h1 className="manus-page-title" style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", fontSize: "1.25rem" }}>
+        <h1
+          className="manus-page-title"
+          style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", fontSize: "1.25rem" }}
+        >
           {rag.name}
         </h1>
         <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
           <div style={{ color: "#71717a", fontSize: "0.9rem" }}>{files.length} files</div>
+          <div className="rag-actions-wrap" ref={actionMenuRef}>
+            <button
+              type="button"
+              className="rag-icon-btn"
+              aria-label="RAG actions"
+              title="RAG actions"
+              onClick={() => setActionsOpen((open) => !open)}
+            >
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v.01M12 12v.01M12 18v.01" />
+              </svg>
+            </button>
+            {actionsOpen ? (
+              <div className="rag-actions-menu" role="menu" aria-label="RAG actions menu">
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={async () => {
+                    const next = window.prompt("Rename RAG", rag.name)?.trim();
+                    if (!next) {
+                      setActionsOpen(false);
+                      return;
+                    }
+                    try {
+                      await renameRag(rag.id, next);
+                    } finally {
+                      setActionsOpen(false);
+                    }
+                  }}
+                >
+                  Rename
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="danger"
+                  onClick={async () => {
+                    const ok = window.confirm(`Delete RAG: "${rag.name}"?`);
+                    if (!ok) {
+                      setActionsOpen(false);
+                      return;
+                    }
+                    try {
+                      await deleteRag(rag.id);
+                      router.push("/rag");
+                    } finally {
+                      setActionsOpen(false);
+                    }
+                  }}
+                >
+                  Delete
+                </button>
+              </div>
+            ) : null}
+          </div>
           <Link className="manus-btn" href="/conversation" aria-label="Back to conversation" title="Back to conversation">
             返回会话
           </Link>
@@ -93,29 +181,6 @@ export function RagDetailPage({ ragId }: { ragId: string }) {
                   onClick={() => uploadInputRef.current?.click()}
                 >
                   Upload
-                </button>
-                <button
-                  className="manus-btn"
-                  type="button"
-                  title="Bind to active project"
-                  aria-label="Bind to active project"
-                  disabled={binding === "saving"}
-                  onClick={async () => {
-                    setBinding("saving");
-                    setError(null);
-                    try {
-                      const result = await bindRagToActiveProject(ragId);
-                      if (!result) throw new Error("No active project selected in workspace");
-                      setBinding("saved");
-                      window.setTimeout(() => setBinding("idle"), 1500);
-                    } catch (e) {
-                      setBinding("error");
-                      setError(e instanceof Error ? e.message : "Bind failed");
-                      window.setTimeout(() => setBinding("idle"), 2500);
-                    }
-                  }}
-                >
-                  {binding === "saved" ? "Bound" : binding === "saving" ? "Binding..." : "Bind to project"}
                 </button>
               </div>
             </div>
@@ -254,8 +319,7 @@ export function RagDetailPage({ ragId }: { ragId: string }) {
                 </pre>
               ) : (
                 <div className="rag-muted">
-                  This file type is not previewed in the UI right now. Path:{" "}
-                  <strong>{previewFile.path}</strong>
+                  This file type is not previewed in the UI right now. Path: <strong>{previewFile.path}</strong>
                 </div>
               )}
             </div>

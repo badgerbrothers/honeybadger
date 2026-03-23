@@ -11,6 +11,7 @@ import {
 import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { projectsApi, ragsApi } from "@/lib/api/endpoints";
+import { ApiError } from "@/lib/api/client";
 import type { ApiProjectRagBinding, ApiRagCollection, ApiRagFile } from "@/lib/api/types";
 
 export type RagStatus = "ready" | "indexing" | "error";
@@ -94,6 +95,24 @@ function mapRagFile(f: ApiRagFile): RagFile {
   };
 }
 
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function nextNameIndex(base: string, existingNames: string[]): number {
+  const normalizedBase = base.trim().toLowerCase();
+  const re = new RegExp(`^${escapeRegex(normalizedBase)}(?:\\s+(\\d+))?$`);
+  let max = 0;
+  for (const raw of existingNames) {
+    const normalized = raw.trim().toLowerCase();
+    const match = re.exec(normalized);
+    if (!match) continue;
+    const idx = match[1] ? Number.parseInt(match[1], 10) : 1;
+    if (Number.isFinite(idx) && idx > max) max = idx;
+  }
+  return Math.max(1, max + 1);
+}
+
 export function RagProvider({ children }: { children: ReactNode }) {
   const qc = useQueryClient();
   const [activeRagId, setActiveRagId] = useState<string | null>(null);
@@ -140,16 +159,43 @@ export function RagProvider({ children }: { children: ReactNode }) {
 
   const createRag = useCallback(
     async (name?: string) => {
-      const created = await ragsApi.create({
-        name: (name ?? "New RAG").trim() || "New RAG",
-        description: "New RAG knowledge set.",
-      });
-      await qc.invalidateQueries({ queryKey: ["rags"] });
-      const mapped = mapRag(created);
-      setActiveRagId(mapped.id);
-      return mapped;
+      const tryCreate = async (candidateName: string) => {
+        const created = await ragsApi.create({
+          name: candidateName,
+          description: "New RAG knowledge set.",
+        });
+        await qc.invalidateQueries({ queryKey: ["rags"] });
+        const mapped = mapRag(created);
+        setActiveRagId(mapped.id);
+        return mapped;
+      };
+
+      const baseName = (name ?? "New RAG").trim() || "New RAG";
+      const existingNames = ragsWithComputedMeta.map((r) => r.name);
+      const hasExplicitName = !!name?.trim();
+
+      if (hasExplicitName) {
+        try {
+          return await tryCreate(baseName);
+        } catch (error) {
+          if (!(error instanceof ApiError && error.status === 409)) throw error;
+        }
+      }
+
+      const startIndex = nextNameIndex(baseName, existingNames);
+      for (let offset = 0; offset < 30; offset += 1) {
+        const candidateName = `${baseName} ${startIndex + offset}`;
+        try {
+          return await tryCreate(candidateName);
+        } catch (error) {
+          if (error instanceof ApiError && error.status === 409) continue;
+          throw error;
+        }
+      }
+
+      throw new Error("Unable to create unique RAG name. Please retry.");
     },
-    [qc],
+    [qc, ragsWithComputedMeta],
   );
 
   const renameRag = useCallback(

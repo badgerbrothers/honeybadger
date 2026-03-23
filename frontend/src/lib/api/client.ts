@@ -30,6 +30,11 @@ function toAbsoluteUrl(path: string) {
   return `${API_BASE_URL}/${path}`;
 }
 
+function isLoopbackHost(hostname: string): boolean {
+  const host = hostname.trim().toLowerCase();
+  return host === "localhost" || host === "127.0.0.1" || host === "::1";
+}
+
 async function parseError(response: Response): Promise<ApiError> {
   const contentType = response.headers.get("content-type") ?? "";
   let detail: unknown = null;
@@ -76,6 +81,7 @@ async function executeFetch(
     skipAuth = false,
   }: ApiFetchOptions,
 ) {
+  const url = toAbsoluteUrl(path);
   const requestHeaders = new Headers(headers);
 
   const token = !skipAuth ? authBridge?.getAccessToken() : null;
@@ -95,7 +101,27 @@ async function executeFetch(
     }
   }
 
-  return fetch(toAbsoluteUrl(path), init);
+  try {
+    return await fetch(url, init);
+  } catch (error) {
+    if (typeof window !== "undefined") {
+      try {
+        const parsed = new URL(url);
+        const pageHost = window.location.hostname;
+        if (isLoopbackHost(parsed.hostname) && pageHost && !isLoopbackHost(pageHost)) {
+          const fallback = `${window.location.protocol}//${pageHost}${parsed.pathname}${parsed.search}`;
+          return await fetch(fallback, init);
+        }
+      } catch {
+        // keep original network error
+      }
+    }
+    throw new ApiError(
+      `Network error calling ${url}. Check that API gateway is reachable at ${API_BASE_URL}.`,
+      0,
+      error,
+    );
+  }
 }
 
 export async function apiFetch<T = unknown>(
@@ -126,4 +152,3 @@ export async function apiFetch<T = unknown>(
   }
   return (await response.json()) as T;
 }
-

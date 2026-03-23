@@ -2,6 +2,7 @@ export type MessageRole = "user" | "assistant" | "system";
 export type TaskQueueStatus = "scheduled" | "queued" | "in_progress" | "done";
 export type TaskRunStatus = "pending" | "running" | "completed" | "failed" | "cancelled";
 export type RagFileStatus = "pending" | "running" | "completed" | "failed";
+export type ApiProviderId = "openai" | "anthropic" | "relay";
 
 export interface ApiProject {
   id: string;
@@ -92,6 +93,41 @@ export interface ApiModelCatalog {
   supported_models: string[];
 }
 
+export interface ApiModelProviderSettings {
+  enabled: boolean;
+  api_key: string;
+  base_url: string;
+  main_model: string;
+  note: string;
+}
+
+export interface ApiModelSettings {
+  active_provider: ApiProviderId;
+  providers: Record<ApiProviderId, ApiModelProviderSettings>;
+  updated_at: string | null;
+}
+
+export interface ApiRoleDoc {
+  id: string;
+  name: string;
+  summary: string;
+  iconKind: "browser" | "terminal" | "python" | "file";
+  markdown: string;
+  category: string;
+  path: string;
+}
+
+export interface ApiSkillDoc {
+  id: string;
+  name: string;
+  summary: string;
+  iconKind: "browser" | "terminal" | "python" | "file";
+  tools: Array<"browser" | "shell" | "python" | "fileio">;
+  markdown: string;
+  category: string;
+  path: string;
+}
+
 export interface ApiArtifact {
   id: string;
   project_id: string;
@@ -134,4 +170,3 @@ export interface ApiProjectRagBinding {
   rag_collection_id: string | null;
   updated_at: string;
 }
-

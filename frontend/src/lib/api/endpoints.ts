@@ -4,6 +4,7 @@ import type {
   ApiConversation,
   ApiMessage,
   ApiModelCatalog,
+  ApiModelSettings,
   ApiProject,
   ApiProjectFileUploadResponse,
   ApiProjectNode,
@@ -11,6 +12,8 @@ import type {
   ApiRagCollection,
   ApiRagFile,
   ApiRagFileUploadResponse,
+  ApiRoleDoc,
+  ApiSkillDoc,
   ApiTask,
   ApiTaskKanban,
   ApiTaskRun,
@@ -19,9 +22,9 @@ import type {
 } from "./types";
 
 export const projectsApi = {
-  list: () => apiFetch<ApiProject[]>("/projects"),
+  list: () => apiFetch<ApiProject[]>("/projects/"),
   create: (payload: { name: string; description?: string | null }) =>
-    apiFetch<ApiProject>("/projects", { method: "POST", body: payload }),
+    apiFetch<ApiProject>("/projects/", { method: "POST", body: payload }),
   update: (projectId: string, payload: { name?: string; description?: string | null }) =>
     apiFetch<ApiProject>(`/projects/${projectId}`, { method: "PATCH", body: payload }),
   remove: (projectId: string) =>
@@ -55,10 +58,10 @@ export const projectsApi = {
 export const conversationsApi = {
   list: (projectId?: string | null) =>
     apiFetch<ApiConversation[]>(
-      projectId ? `/conversations?project_id=${encodeURIComponent(projectId)}` : "/conversations",
+      projectId ? `/conversations/?project_id=${encodeURIComponent(projectId)}` : "/conversations/",
     ),
   create: (payload: { project_id: string; title?: string | null }) =>
-    apiFetch<ApiConversation>("/conversations", { method: "POST", body: payload }),
+    apiFetch<ApiConversation>("/conversations/", { method: "POST", body: payload }),
   update: (conversationId: string, payload: { title?: string | null }) =>
     apiFetch<ApiConversation>(`/conversations/${conversationId}`, { method: "PATCH", body: payload }),
   remove: (conversationId: string) =>
@@ -79,7 +82,7 @@ export const tasksApi = {
     if (params.conversationId) qs.set("conversation_id", params.conversationId);
     if (params.projectId) qs.set("project_id", params.projectId);
     const suffix = qs.toString() ? `?${qs.toString()}` : "";
-    return apiFetch<ApiTask[]>(`/tasks${suffix}`);
+    return apiFetch<ApiTask[]>(`/tasks/${suffix}`);
   },
   create: (payload: {
     conversation_id: string;
@@ -88,9 +91,20 @@ export const tasksApi = {
     model?: string | null;
     skill?: string | null;
     rag_collection_id?: string | null;
-  }) => apiFetch<ApiTask>("/tasks", { method: "POST", body: payload }),
+  }) => apiFetch<ApiTask>("/tasks/", { method: "POST", body: payload }),
 
   models: () => apiFetch<ApiModelCatalog>("/tasks/models"),
+  getModelSettings: () => apiFetch<ApiModelSettings>("/tasks/model-settings"),
+  putModelSettings: (payload: ApiModelSettings) =>
+    apiFetch<ApiModelSettings>("/tasks/model-settings", {
+      method: "PUT",
+      body: {
+        active_provider: payload.active_provider,
+        providers: payload.providers,
+      },
+    }),
+  listRoles: () => apiFetch<ApiRoleDoc[]>("/tasks/roles"),
+  listSkills: () => apiFetch<ApiSkillDoc[]>("/tasks/skills"),
   kanban: (projectId?: string | null) =>
     apiFetch<ApiTaskKanban>(
       projectId ? `/tasks/kanban?project_id=${encodeURIComponent(projectId)}` : "/tasks/kanban",
@@ -99,6 +113,8 @@ export const tasksApi = {
     apiFetch<ApiTask>(`/tasks/${taskId}/queue-status?queue_status=${encodeURIComponent(queueStatus)}`, {
       method: "PATCH",
     }),
+  runs: (taskId: string) =>
+    apiFetch<ApiTaskRun[]>(`/tasks/${taskId}/runs`),
 
   createRun: (taskId: string) =>
     apiFetch<ApiTaskRun>(`/tasks/${taskId}/runs`, { method: "POST" }),
@@ -118,9 +134,9 @@ export const artifactsApi = {
 };
 
 export const ragsApi = {
-  list: () => apiFetch<ApiRagCollection[]>("/rags"),
+  list: () => apiFetch<ApiRagCollection[]>("/rags/"),
   create: (payload: { name: string; description?: string | null }) =>
-    apiFetch<ApiRagCollection>("/rags", { method: "POST", body: payload }),
+    apiFetch<ApiRagCollection>("/rags/", { method: "POST", body: payload }),
   update: (ragId: string, payload: { name?: string | null; description?: string | null }) =>
     apiFetch<ApiRagCollection>(`/rags/${ragId}`, { method: "PATCH", body: payload }),
   remove: (ragId: string) => apiFetch<void>(`/rags/${ragId}`, { method: "DELETE" }),
@@ -135,4 +151,3 @@ export const ragsApi = {
     });
   },
 };
-

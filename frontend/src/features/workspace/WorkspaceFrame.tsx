@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { RequireAuth } from "@/lib/auth/RequireAuth";
+import { useAuth } from "@/lib/auth/AuthContext";
 
 import { WorkspaceProvider, useWorkspace } from "./WorkspaceContext";
 
@@ -10,6 +11,7 @@ type MenuTarget = { kind: "project" | "conversation"; id: string } | null;
 type MenuPosition = { left: number; top: number } | null;
 
 function WorkspaceSidebar() {
+  const { user, logout } = useAuth();
   const {
     projects,
     activeProjectId,
@@ -31,11 +33,20 @@ function WorkspaceSidebar() {
   const [projectsCollapsed, setProjectsCollapsed] = useState(false);
   const [menuTarget, setMenuTarget] = useState<MenuTarget>(null);
   const [menuPosition, setMenuPosition] = useState<MenuPosition>(null);
+  const [loggingOut, setLoggingOut] = useState(false);
+  const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
+  const [editingProjectName, setEditingProjectName] = useState("");
   const menuRef = useRef<HTMLDivElement | null>(null);
 
   const activeProjectName = useMemo(() => {
     return activeProject?.name ?? "Untitled";
   }, [activeProject]);
+
+  const userEmail = user?.email ?? "Unknown user";
+  const userInitial = useMemo(() => {
+    const head = userEmail.trim().charAt(0);
+    return head ? head.toUpperCase() : "U";
+  }, [userEmail]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -92,6 +103,18 @@ function WorkspaceSidebar() {
     setMenuPosition(pos);
   };
 
+  const beginProjectRename = (projectId: string, currentName: string) => {
+    setEditingProjectId(projectId);
+    setEditingProjectName(currentName);
+  };
+
+  const finishProjectRename = async (projectId: string, currentName: string) => {
+    const trimmed = editingProjectName.trim();
+    setEditingProjectId(null);
+    if (!trimmed || trimmed === currentName) return;
+    await renameProject(projectId, trimmed);
+  };
+
   return (
     <>
       {!collapsed ? null : (
@@ -108,7 +131,16 @@ function WorkspaceSidebar() {
 
       <aside className={`sidebar ${collapsed ? "is-collapsed" : ""}`}>
         <div className="sidebar-header">
-          <button className="new-project-btn" type="button" aria-label="New project" onClick={createProject}>
+          <button
+            className="new-project-btn"
+            type="button"
+            aria-label="New project"
+            onClick={async () => {
+              setProjectsCollapsed(false);
+              const created = await createProject();
+              beginProjectRename(created.id, created.name);
+            }}
+          >
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
             </svg>
@@ -206,19 +238,48 @@ function WorkspaceSidebar() {
               return (
                 <div
                   key={p.id}
-                  className={`history-item ${active ? "active" : ""}`}
+                  className={`history-item ${active ? "active" : ""} ${editingProjectId === p.id ? "is-editing" : ""}`}
                   role="listitem"
                   tabIndex={0}
                   data-kind="project"
-                  onClick={() => selectProject(p.id)}
+                  onClick={() => {
+                    if (editingProjectId === p.id) return;
+                    selectProject(p.id);
+                  }}
                   onKeyDown={(event) => {
+                    if (editingProjectId === p.id) return;
                     if (event.key === "Enter" || event.key === " ") {
                       event.preventDefault();
                       selectProject(p.id);
                     }
                   }}
                 >
-                  <span className="item-label">{p.name}</span>
+                  {editingProjectId === p.id ? (
+                    <input
+                      className="item-rename-input"
+                      value={editingProjectName}
+                      onClick={(event) => event.stopPropagation()}
+                      onChange={(event) => setEditingProjectName(event.target.value)}
+                      onBlur={() => {
+                        void finishProjectRename(p.id, p.name);
+                      }}
+                      onKeyDown={(event) => {
+                        event.stopPropagation();
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          void finishProjectRename(p.id, p.name);
+                        } else if (event.key === "Escape") {
+                          event.preventDefault();
+                          setEditingProjectId(null);
+                          setEditingProjectName("");
+                        }
+                      }}
+                      autoFocus
+                      aria-label="Rename project"
+                    />
+                  ) : (
+                    <span className="item-label">{p.name}</span>
+                  )}
                   <button
                     className="item-menu-btn"
                     type="button"
@@ -241,10 +302,28 @@ function WorkspaceSidebar() {
         ) : null}
 
         <div className="sidebar-footer">
-          <div className="user-profile">
-            <div className="avatar-small">U</div>
-            <span style={{ fontSize: "0.9rem", fontWeight: 500 }}>User Workspace</span>
+          <div className="user-profile" title={userEmail}>
+            <div className="avatar-small">{userInitial}</div>
+            <div className="user-meta">
+              <span className="user-email">{userEmail}</span>
+            </div>
           </div>
+          <button
+            type="button"
+            className="logout-btn"
+            onClick={async () => {
+              if (loggingOut) return;
+              setLoggingOut(true);
+              try {
+                await logout();
+              } finally {
+                setLoggingOut(false);
+              }
+            }}
+            disabled={loggingOut}
+          >
+            {loggingOut ? "Logging out..." : "Logout"}
+          </button>
         </div>
       </aside>
 
@@ -261,8 +340,7 @@ function WorkspaceSidebar() {
               if (menuTarget.kind === "project") {
                 const p = projects.find((item) => item.id === menuTarget.id);
                 if (!p) return;
-                const next = window.prompt("Rename project", p.name);
-                if (next && next.trim()) renameProject(p.id, next);
+                beginProjectRename(p.id, p.name);
               } else {
                 const c = activeConversations.find((item) => item.id === menuTarget.id) ?? null;
                 if (!c) return;
@@ -284,7 +362,10 @@ function WorkspaceSidebar() {
                 const p = projects.find((item) => item.id === menuTarget.id);
                 if (!p) return;
                 const ok = window.confirm(`Delete project: "${p.name}"?`);
-                if (ok) deleteProject(p.id);
+                if (ok) {
+                  if (editingProjectId === p.id) setEditingProjectId(null);
+                  deleteProject(p.id);
+                }
               } else {
                 const c = activeConversations.find((item) => item.id === menuTarget.id) ?? null;
                 if (!c) return;

@@ -16,6 +16,7 @@ import {
   projectsApi,
   tasksApi,
 } from "@/lib/api/endpoints";
+import { ApiError } from "@/lib/api/client";
 import type { ApiConversation, ApiMessage, ApiProject, ApiTask } from "@/lib/api/types";
 
 export type TaskStatus = "schedule" | "queue" | "inprogress" | "done";
@@ -76,7 +77,7 @@ interface WorkspaceState {
   setMessageDraft: (value: string) => void;
 
   selectProject: (id: string) => void;
-  createProject: () => Promise<void>;
+  createProject: () => Promise<Project>;
   renameProject: (id: string, name: string) => Promise<void>;
   deleteProject: (id: string) => Promise<void>;
 
@@ -191,6 +192,31 @@ function mapTask(t: ApiTask): Task {
     meta: t.model,
     raw: t,
   };
+}
+
+function defaultConversationTitleFromMessage(content: string): string {
+  const trimmed = content.trim();
+  if (!trimmed) return "New conversation";
+  const compact = trimmed.replace(/\s+/g, " ");
+  return compact.length > 48 ? `${compact.slice(0, 48)}...` : compact;
+}
+
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function nextNameIndex(base: string, existingNames: string[]): number {
+  const normalizedBase = base.trim().toLowerCase();
+  const re = new RegExp(`^${escapeRegex(normalizedBase)}(?:\\s+(\\d+))?$`);
+  let max = 0;
+  for (const raw of existingNames) {
+    const normalized = raw.trim().toLowerCase();
+    const match = re.exec(normalized);
+    if (!match) continue;
+    const idx = match[1] ? Number.parseInt(match[1], 10) : 1;
+    if (Number.isFinite(idx) && idx > max) max = idx;
+  }
+  return Math.max(1, max + 1);
 }
 
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
@@ -313,21 +339,35 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     setMessageDraft("");
   };
 
-  const createProject = useCallback(async () => {
-    const created = await projectsApi.create({ name: "New project" });
-    await qc.invalidateQueries({ queryKey: ["projects"] });
-    setActiveProjectId(created.id);
-    storeString(LS_ACTIVE_PROJECT, created.id);
+  const createProject = useCallback(async (): Promise<Project> => {
+    const baseName = "New project";
+    const startIndex = nextNameIndex(
+      baseName,
+      projects.map((p) => p.name),
+    );
 
-    // Ensure the new project has at least one conversation.
-    const conv = await conversationsApi.create({
-      project_id: created.id,
-      title: "New conversation",
-    });
-    await qc.invalidateQueries({ queryKey: ["conversations", created.id] });
-    setActiveConversationId(conv.id);
-    setActiveConversationByProject((prev) => ({ ...prev, [created.id]: conv.id }));
-  }, [qc]);
+    for (let offset = 0; offset < 30; offset += 1) {
+      const candidateName = `${baseName} ${startIndex + offset}`;
+      try {
+        const created = await projectsApi.create({ name: candidateName });
+        if (created.name.trim() !== candidateName) {
+          const updated = await projectsApi.update(created.id, { name: candidateName });
+          created.name = updated.name;
+          created.updated_at = updated.updated_at;
+        }
+        await qc.invalidateQueries({ queryKey: ["projects"] });
+        setActiveProjectId(created.id);
+        storeString(LS_ACTIVE_PROJECT, created.id);
+        setActiveConversationId(null);
+        return mapProject(created);
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 409) continue;
+        throw error;
+      }
+    }
+
+    throw new Error("Unable to create unique project name. Please retry.");
+  }, [projects, qc]);
 
   const renameProject = useCallback(async (id: string, name: string) => {
     const trimmed = name.trim();
@@ -375,7 +415,47 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     async (content: string, opts?: { model?: string | null }): Promise<SendMessageResult | null> => {
       const trimmed = content.trim();
       if (!trimmed) return null;
-      if (!activeProjectId || !activeConversationId) return null;
+
+      let projectId = activeProjectId;
+      if (!projectId) {
+        const existingProjectId = projects[0]?.id ?? null;
+        if (existingProjectId) {
+          projectId = existingProjectId;
+        } else {
+          const createdProject = await createProject();
+          projectId = createdProject.id;
+        }
+        setActiveProjectId(projectId);
+        storeString(LS_ACTIVE_PROJECT, projectId);
+      }
+
+      let conversationId = activeConversationId;
+      const isConversationInProject = !!conversationId
+        && activeConversations.some((c) => c.id === conversationId);
+      if (!isConversationInProject) {
+        conversationId = activeConversations[0]?.id ?? null;
+      }
+      if (!conversationId) {
+        const existingConversations = await conversationsApi.list(projectId);
+        const existingConversationId = existingConversations[0]?.id ?? null;
+        conversationId = existingConversationId;
+        if (existingConversationId) {
+          setActiveConversationId(existingConversationId);
+          setActiveConversationByProject((prev) => ({ ...prev, [projectId]: existingConversationId }));
+          await qc.invalidateQueries({ queryKey: ["conversations", projectId] });
+        }
+      }
+      if (!conversationId) {
+        const createdConversation = await conversationsApi.create({
+          project_id: projectId,
+          title: defaultConversationTitleFromMessage(trimmed),
+        });
+        await qc.invalidateQueries({ queryKey: ["conversations", projectId] });
+        const createdConversationId = createdConversation.id;
+        conversationId = createdConversationId;
+        setActiveConversationId(createdConversationId);
+        setActiveConversationByProject((prev) => ({ ...prev, [projectId]: createdConversationId }));
+      }
 
       const modelCatalog = await qc.fetchQuery({
         queryKey: ["modelCatalog"],
@@ -383,28 +463,28 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       });
       const model = (opts?.model?.trim() || modelCatalog.default_model) ?? modelCatalog.default_model;
 
-      await conversationsApi.createMessage(activeConversationId, {
+      await conversationsApi.createMessage(conversationId, {
         role: "user",
         content: trimmed,
       });
 
       // Refresh messages before starting run so UI shows user message immediately.
-      await qc.invalidateQueries({ queryKey: ["messages", activeConversationId] });
+      await qc.invalidateQueries({ queryKey: ["messages", conversationId] });
 
       const task = await tasksApi.create({
-        conversation_id: activeConversationId,
-        project_id: activeProjectId,
+        conversation_id: conversationId,
+        project_id: projectId,
         goal: trimmed,
         model,
       });
 
-      await qc.invalidateQueries({ queryKey: ["kanban", activeProjectId] });
+      await qc.invalidateQueries({ queryKey: ["kanban", projectId] });
 
       const run = await tasksApi.createRun(task.id);
       setMessageDraft("");
       return { taskId: task.id, runId: run.id };
     },
-    [activeConversationId, activeProjectId, qc],
+    [activeConversationId, activeConversations, activeProjectId, createProject, projects, qc],
   );
 
   const moveTask = useCallback(

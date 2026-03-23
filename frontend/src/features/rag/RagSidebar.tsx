@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { ragStatusLabel, useRag } from "./RagContext";
 
@@ -15,8 +15,11 @@ function statusClass(status: string) {
 export function RagSidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const { rags, createRag } = useRag();
+  const { rags, createRag, renameRag, deleteRag } = useRag();
   const [query, setQuery] = useState("");
+  const [editingRagId, setEditingRagId] = useState<string | null>(null);
+  const [editingRagName, setEditingRagName] = useState("");
+  const [menuRagId, setMenuRagId] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -26,6 +29,38 @@ export function RagSidebar() {
       return hay.includes(q);
     });
   }, [rags, query]);
+
+  const beginRagRename = (ragId: string, currentName: string) => {
+    setEditingRagId(ragId);
+    setEditingRagName(currentName);
+  };
+
+  const finishRagRename = async (ragId: string, currentName: string) => {
+    const trimmed = editingRagName.trim();
+    setEditingRagId(null);
+    if (!trimmed || trimmed === currentName) return;
+    await renameRag(ragId, trimmed);
+  };
+
+  const closeMenu = () => setMenuRagId(null);
+
+  useEffect(() => {
+    if (!menuRagId) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") closeMenu();
+    };
+    const onMouseDown = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (target.closest(".rag-item-menu-wrap")) return;
+      closeMenu();
+    };
+    document.addEventListener("keydown", onKeyDown);
+    document.addEventListener("mousedown", onMouseDown);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      document.removeEventListener("mousedown", onMouseDown);
+    };
+  }, [menuRagId]);
 
   return (
     <aside className="manus-sidebar rag-sidebar" aria-label="RAG list">
@@ -37,9 +72,9 @@ export function RagSidebar() {
           title="Create RAG"
           aria-label="Create RAG"
           onClick={async () => {
-            const name = window.prompt("Create RAG name", "New RAG")?.trim();
-            if (!name) return;
-            const created = await createRag(name);
+            const created = await createRag();
+            setQuery("");
+            beginRagRename(created.id, created.name);
             router.push(`/rag/${created.id}`);
           }}
         >
@@ -64,25 +99,121 @@ export function RagSidebar() {
       <div className="rag-list" role="list">
         {filtered.map((r) => {
           const active = pathname === `/rag/${r.id}` || pathname.startsWith(`/rag/${r.id}/`);
-          return (
-            <Link
-              key={r.id}
-              href={`/rag/${r.id}`}
-              className={`rag-item ${active ? "active" : ""}`}
-              role="listitem"
-              onClick={() => {
-                // Let the router handle it; this also keeps the app snappy on slow devices.
-              }}
-            >
-              <span className="rag-item-label">
-                <div className="rag-item-name">{r.name}</div>
-                <div className="rag-item-meta">
-                  <span>{r.fileCount} files</span>
-                  <span>{ragStatusLabel(r.status)}</span>
+          if (editingRagId === r.id) {
+            return (
+              <div key={r.id} className={`rag-item ${active ? "active" : ""}`} role="listitem">
+                <span className="rag-item-label">
+                  <input
+                    className="rag-item-input"
+                    value={editingRagName}
+                    onClick={(event) => event.stopPropagation()}
+                    onChange={(event) => setEditingRagName(event.target.value)}
+                    onBlur={() => {
+                      void finishRagRename(r.id, r.name);
+                    }}
+                    onKeyDown={(event) => {
+                      event.stopPropagation();
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        void finishRagRename(r.id, r.name);
+                      } else if (event.key === "Escape") {
+                        event.preventDefault();
+                        setEditingRagId(null);
+                        setEditingRagName("");
+                      }
+                    }}
+                    autoFocus
+                    aria-label="Rename RAG"
+                  />
+                  <div className="rag-item-meta">
+                    <span>{r.fileCount} files</span>
+                    <span>{ragStatusLabel(r.status)}</span>
+                  </div>
+                </span>
+                <div style={{ display: "inline-flex", alignItems: "center", gap: "0.45rem" }}>
+                  <span className={statusClass(r.status)} aria-hidden="true" />
+                  <button
+                    type="button"
+                    className="rag-item-menu-btn"
+                    aria-label="RAG menu"
+                    title="RAG menu"
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      setMenuRagId((prev) => (prev === r.id ? null : r.id));
+                    }}
+                  >
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v.01M12 12v.01M12 18v.01" />
+                    </svg>
+                  </button>
                 </div>
-              </span>
-              <span className={statusClass(r.status)} aria-hidden="true" />
-            </Link>
+              </div>
+            );
+          }
+          return (
+            <div key={r.id} className={`rag-item ${active ? "active" : ""}`} role="listitem">
+              <Link href={`/rag/${r.id}`} className="rag-item-main">
+                <span className="rag-item-label">
+                  <div className="rag-item-name">{r.name}</div>
+                  <div className="rag-item-meta">
+                    <span>{r.fileCount} files</span>
+                    <span>{ragStatusLabel(r.status)}</span>
+                  </div>
+                </span>
+              </Link>
+              <div className="rag-item-menu-wrap">
+                <span className={statusClass(r.status)} aria-hidden="true" />
+                <button
+                  type="button"
+                  className="rag-item-menu-btn"
+                  aria-label="RAG menu"
+                  title="RAG menu"
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    setMenuRagId((prev) => (prev === r.id ? null : r.id));
+                  }}
+                >
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v.01M12 12v.01M12 18v.01" />
+                  </svg>
+                </button>
+                {menuRagId === r.id ? (
+                  <div className="rag-item-menu" role="menu" aria-label="RAG item actions">
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        beginRagRename(r.id, r.name);
+                        closeMenu();
+                      }}
+                    >
+                      重命名
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="danger"
+                      onClick={async () => {
+                        const ok = window.confirm(`Delete RAG: "${r.name}"?`);
+                        if (!ok) {
+                          closeMenu();
+                          return;
+                        }
+                        await deleteRag(r.id);
+                        if (pathname === `/rag/${r.id}` || pathname.startsWith(`/rag/${r.id}/`)) {
+                          router.push("/rag");
+                        }
+                        closeMenu();
+                      }}
+                    >
+                      删除
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+            </div>
           );
         })}
         {filtered.length === 0 ? (

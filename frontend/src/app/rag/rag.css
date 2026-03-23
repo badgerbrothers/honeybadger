@@ -7,11 +7,29 @@
   height: 100vh;
 }
 
+.rag-workspace .manus-main-content {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 100%;
+  max-width: none;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.rag-workspace .manus-content-area {
+  width: 100%;
+  max-width: none;
+}
+
 .rag-workspace .manus-content-area.fluid {
   max-width: none;
   width: 100%;
   margin: 0;
-  padding: 1rem 0 1rem 1rem;
+  padding: 1rem;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: auto;
 }
 
 .rag-sidebar-top {
@@ -49,6 +67,47 @@
 .rag-icon-btn:hover {
   background-color: #e5e5e5;
   color: #1a1a1a;
+}
+
+.rag-actions-wrap {
+  position: relative;
+}
+
+.rag-actions-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 40;
+  min-width: 160px;
+  padding: 0.35rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.65rem;
+  background: #ffffff;
+  box-shadow: 0 14px 36px rgba(15, 23, 42, 0.16);
+}
+
+.rag-actions-menu button {
+  width: 100%;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 0.55rem;
+  padding: 0.5rem 0.6rem;
+  text-align: left;
+  font-size: 0.9rem;
+  color: #111827;
+  cursor: pointer;
+}
+
+.rag-actions-menu button:hover {
+  background: #f5f5f5;
+}
+
+.rag-actions-menu button.danger {
+  color: #b91c1c;
+}
+
+.rag-actions-menu button.danger:hover {
+  background: rgba(185, 28, 28, 0.08);
 }
 
 .rag-search {
@@ -113,6 +172,13 @@
   text-decoration: none;
 }
 
+.rag-item-main {
+  flex: 1;
+  min-width: 0;
+  text-decoration: none;
+  color: inherit;
+}
+
 .rag-item:hover {
   background-color: #e5e5e5;
   color: #1a1a1a;
@@ -138,10 +204,90 @@
   min-width: 0;
 }
 
+.rag-item-menu-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex: 0 0 auto;
+}
+
+.rag-item-menu-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 0.45rem;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #71717a;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s, color 0.2s;
+}
+
+.rag-item-menu-btn:hover {
+  background: rgba(0, 0, 0, 0.06);
+  color: #111827;
+}
+
+.rag-item-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 30;
+  min-width: 144px;
+  padding: 0.35rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.65rem;
+  background: #ffffff;
+  box-shadow: 0 14px 36px rgba(15, 23, 42, 0.15);
+}
+
+.rag-item-menu button {
+  width: 100%;
+  border: 1px solid transparent;
+  border-radius: 0.55rem;
+  background: transparent;
+  color: #111827;
+  text-align: left;
+  font-size: 0.88rem;
+  padding: 0.48rem 0.58rem;
+  cursor: pointer;
+}
+
+.rag-item-menu button:hover {
+  background: #f4f4f5;
+}
+
+.rag-item-menu button.danger {
+  color: #b91c1c;
+}
+
+.rag-item-menu button.danger:hover {
+  background: rgba(185, 28, 28, 0.08);
+}
+
 .rag-item-name {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.rag-item-input {
+  width: 100%;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.45rem;
+  padding: 0.32rem 0.48rem;
+  font-size: 0.9rem;
+  color: #111827;
+  background: #ffffff;
+  outline: none;
+}
+
+.rag-item-input:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
 }
 
 .rag-status-dot {

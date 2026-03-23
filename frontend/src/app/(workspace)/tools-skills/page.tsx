@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { workspaceSkills, type SkillTool, type WorkspaceSkill } from "@/features/workspace/skills";
-import { workspaceRoles, type WorkspaceRoleDoc } from "@/features/workspace/roles";
+import type { SkillTool } from "@/features/workspace/skills";
+import type { WorkspaceRoleDoc } from "@/features/workspace/roles";
+import { tasksApi } from "@/lib/api/endpoints";
 
 type ToolId = "browser" | "shell" | "python" | "fileio";
 type IconKind = "browser" | "terminal" | "python" | "file";
@@ -77,10 +78,14 @@ const skillToolLabel: Record<string, string> = {
   fileio: "File I/O",
 };
 
-type SkillDoc = Pick<
-  WorkspaceSkill,
-  "id" | "name" | "summary" | "iconKind" | "tools" | "markdown"
->;
+type SkillDoc = {
+  id: string;
+  name: string;
+  summary: string;
+  iconKind: IconKind;
+  tools: SkillTool[];
+  markdown: string;
+};
 
 type PreviewDoc = {
   kind: DocKind;
@@ -144,8 +149,14 @@ export default function ToolsSkillsPage() {
     python: true,
     fileio: true,
   });
+  const [catalogSkills, setCatalogSkills] = useState<SkillDoc[]>([]);
   const [customSkills, setCustomSkills] = useState<SkillDoc[]>([]);
+  const [skillsLoading, setSkillsLoading] = useState(false);
+  const [skillsLoadError, setSkillsLoadError] = useState<string | null>(null);
+  const [catalogRoles, setCatalogRoles] = useState<WorkspaceRoleDoc[]>([]);
   const [customRoles, setCustomRoles] = useState<WorkspaceRoleDoc[]>([]);
+  const [rolesLoading, setRolesLoading] = useState(false);
+  const [rolesLoadError, setRolesLoadError] = useState<string | null>(null);
   const [previewDoc, setPreviewDoc] = useState<PreviewDoc | null>(null);
   const importSkillsRef = useRef<HTMLInputElement | null>(null);
   const importRolesRef = useRef<HTMLInputElement | null>(null);
@@ -159,21 +170,61 @@ export default function ToolsSkillsPage() {
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [previewDoc]);
 
+  useEffect(() => {
+    let cancelled = false;
+    const loadSkills = async () => {
+      setSkillsLoading(true);
+      setSkillsLoadError(null);
+      try {
+        const skills = await tasksApi.listSkills();
+        if (!cancelled) setCatalogSkills(skills);
+      } catch (error) {
+        if (cancelled) return;
+        const message = error instanceof Error ? error.message : "Failed to load skills catalog";
+        setCatalogSkills([]);
+        setSkillsLoadError(message);
+      } finally {
+        if (!cancelled) setSkillsLoading(false);
+      }
+    };
+
+    void loadSkills();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadRoles = async () => {
+      setRolesLoading(true);
+      setRolesLoadError(null);
+      try {
+        const roles = await tasksApi.listRoles();
+        if (!cancelled) setCatalogRoles(roles);
+      } catch (error) {
+        if (cancelled) return;
+        const message = error instanceof Error ? error.message : "Failed to load roles catalog";
+        setCatalogRoles([]);
+        setRolesLoadError(message);
+      } finally {
+        if (!cancelled) setRolesLoading(false);
+      }
+    };
+
+    void loadRoles();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const allSkills: SkillDoc[] = useMemo(() => {
-    const base = workspaceSkills.map((s) => ({
-      id: s.id,
-      name: s.name,
-      summary: s.summary,
-      iconKind: s.iconKind,
-      tools: s.tools,
-      markdown: s.markdown,
-    }));
-    return [...base, ...customSkills];
-  }, [customSkills]);
+    return [...catalogSkills, ...customSkills];
+  }, [catalogSkills, customSkills]);
 
   const allRoles: WorkspaceRoleDoc[] = useMemo(() => {
-    return [...workspaceRoles, ...customRoles];
-  }, [customRoles]);
+    return [...catalogRoles, ...customRoles];
+  }, [catalogRoles, customRoles]);
 
   const importMarkdownFiles = async (files: FileList | null) => {
     if (!files || files.length === 0) return [];
@@ -290,6 +341,9 @@ export default function ToolsSkillsPage() {
             <span className="ws-tools-section-note">点击卡片查看 Markdown 文档内容。</span>
           </div>
 
+          {skillsLoading ? <div className="ws-tools-section-note">Loading skills catalog...</div> : null}
+          {skillsLoadError ? <div className="ws-tools-section-note">Failed to load skills: {skillsLoadError}</div> : null}
+
           <div className="ws-tools-grid">
             {allSkills.map((skill) => (
               <article
@@ -361,6 +415,9 @@ export default function ToolsSkillsPage() {
           <span className="ws-tools-section-note">点击卡片查看 Markdown 文档内容。</span>
         </div>
 
+        {rolesLoading ? <div className="ws-tools-section-note">Loading roles catalog...</div> : null}
+        {rolesLoadError ? <div className="ws-tools-section-note">Failed to load roles: {rolesLoadError}</div> : null}
+
         <div className="ws-tools-grid">
           {allRoles.map((role) => (
             <article
@@ -421,7 +478,7 @@ export default function ToolsSkillsPage() {
         </div>
       </>
     );
-  }, [activeTab, toolEnabled, allSkills, allRoles]);
+  }, [activeTab, toolEnabled, allSkills, allRoles, skillsLoading, skillsLoadError, rolesLoading, rolesLoadError]);
 
   return (
     <main className="main-content ws-tools-main">
@@ -557,3 +614,4 @@ export default function ToolsSkillsPage() {
     </main>
   );
 }
+

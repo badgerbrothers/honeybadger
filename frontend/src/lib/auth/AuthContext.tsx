@@ -67,28 +67,100 @@ function saveStoredAuth(value: StoredAuth | null) {
   else window.localStorage.setItem(STORAGE_KEY, JSON.stringify(value));
 }
 
-async function readJsonOrThrow(res: Response): Promise<any> {
+function defaultErrorMessage(status: number): string {
+  switch (status) {
+    case 400:
+      return "Request parameters are invalid.";
+    case 401:
+      return "Invalid email or password.";
+    case 403:
+      return "You do not have permission to perform this action.";
+    case 404:
+      return "Requested resource was not found.";
+    case 409:
+      return "This email is already registered.";
+    case 422:
+      return "Validation failed. Please check your input.";
+    case 500:
+      return "Server error. Please try again later.";
+    default:
+      return `Request failed (${status})`;
+  }
+}
+
+function defaultErrorMessageByCode(code: string): string | null {
+  switch (code) {
+    case "AUTH_INVALID_CREDENTIALS":
+      return "Invalid email or password.";
+    case "AUTH_EMAIL_ALREADY_REGISTERED":
+      return "This email is already registered.";
+    case "AUTH_INVALID_REFRESH_TOKEN":
+    case "AUTH_INVALID_TOKEN":
+    case "AUTH_INVALID_TOKEN_TYPE":
+      return "Your session is invalid or expired. Please log in again.";
+    case "VALIDATION_ERROR":
+      return "Validation failed. Please check your input.";
+    case "INVALID_REQUEST_BODY":
+      return "Request format is invalid.";
+    default:
+      return null;
+  }
+}
+
+async function readErrorPayload(
+  res: Response,
+): Promise<{ message: string; code?: string }> {
   const contentType = res.headers.get("content-type") ?? "";
-  if (contentType.includes("application/json")) return await res.json();
-  const text = await res.text();
-  throw new Error(text || `HTTP ${res.status}`);
+  let code: string | undefined;
+  try {
+    if (contentType.includes("application/json")) {
+      const body = (await res.json()) as
+        | { code?: string; message?: string; detail?: string; error?: string }
+        | null;
+      code = body?.code?.trim() || undefined;
+      const message = body?.message || body?.detail || body?.error;
+      if (message && message.trim()) return { message, code };
+    } else {
+      const text = await res.text();
+      if (text.trim()) return { message: text.trim(), code };
+    }
+  } catch {
+    // ignore parse errors and fallback to status mapping
+  }
+  return {
+    message:
+      (code ? defaultErrorMessageByCode(code) : null) ??
+      defaultErrorMessage(res.status),
+    code,
+  };
 }
 
 async function fetchJson<T>(path: string, init: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE_URL}${path}`, {
-    ...init,
-    headers: {
-      "content-type": "application/json",
-      ...(init.headers ?? {}),
-    },
-  });
-  if (!res.ok) {
-    const body = await readJsonOrThrow(res).catch(() => null);
-    const message =
-      (body && (body.message || body.detail)) || `Request failed (${res.status})`;
-    throw new Error(message);
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE_URL}${path}`, {
+      ...init,
+      headers: {
+        "content-type": "application/json",
+        ...(init.headers ?? {}),
+      },
+    });
+  } catch {
+    throw new Error(
+      "Unable to connect to the API gateway. Check gateway startup and CORS settings.",
+    );
   }
-  return (await res.json()) as T;
+  if (!res.ok) {
+    const { message, code } = await readErrorPayload(res);
+    const fallbackByCode = code ? defaultErrorMessageByCode(code) : null;
+    throw new Error(fallbackByCode ?? message);
+  }
+  if (res.status === 204) return undefined as T;
+  const contentType = res.headers.get("content-type") ?? "";
+  if (contentType.includes("application/json")) {
+    return (await res.json()) as T;
+  }
+  return (await res.text()) as T;
 }
 
 const AuthContext = createContext<AuthState | null>(null);
