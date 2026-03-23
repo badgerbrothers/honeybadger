@@ -1,6 +1,8 @@
 package com.badgers.auth.controller;
 
 import com.badgers.auth.dto.UserResponse;
+import com.badgers.auth.error.ApiException;
+import com.badgers.auth.error.ErrorCodes;
 import com.badgers.auth.service.AuthService;
 import com.badgers.auth.service.JwtUserPrincipal;
 import org.springframework.http.HttpStatus;
@@ -8,7 +10,6 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.server.ResponseStatusException;
 
 @RestController
 @RequestMapping("/api/users")
@@ -22,7 +23,11 @@ public class UserController {
     @GetMapping("/me")
     public UserResponse me(Authentication authentication) {
         if (authentication == null || !(authentication.getPrincipal() instanceof JwtUserPrincipal principal)) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Authentication required");
+            throw new ApiException(
+                HttpStatus.UNAUTHORIZED,
+                ErrorCodes.AUTH_AUTHENTICATION_REQUIRED,
+                "Authentication required"
+            );
         }
         return authService.getUserById(principal.userId());
     }

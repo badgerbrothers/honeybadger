@@ -8,6 +8,8 @@ import com.badgers.auth.dto.LogoutRequest;
 import com.badgers.auth.dto.RefreshRequest;
 import com.badgers.auth.dto.RegisterRequest;
 import com.badgers.auth.dto.UserResponse;
+import com.badgers.auth.error.ApiException;
+import com.badgers.auth.error.ErrorCodes;
 import com.badgers.auth.repository.RefreshTokenSessionRepository;
 import com.badgers.auth.repository.UserRepository;
 import java.nio.charset.StandardCharsets;
@@ -17,11 +19,11 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.HexFormat;
 import java.util.Locale;
+import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class AuthService {
@@ -46,7 +48,11 @@ public class AuthService {
     public AuthTokensResponse register(RegisterRequest request) {
         String email = normalizeEmail(request.email());
         if (userRepository.findByEmail(email).isPresent()) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Email already registered");
+            throw new ApiException(
+                HttpStatus.CONFLICT,
+                ErrorCodes.AUTH_EMAIL_ALREADY_REGISTERED,
+                "Email already registered"
+            );
         }
 
         User user = new User(email, passwordEncoder.encode(request.password()));
@@ -58,10 +64,18 @@ public class AuthService {
     public AuthTokensResponse login(LoginRequest request) {
         String email = normalizeEmail(request.email());
         User user = userRepository.findByEmail(email)
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid credentials"));
+            .orElseThrow(() -> new ApiException(
+                HttpStatus.UNAUTHORIZED,
+                ErrorCodes.AUTH_INVALID_CREDENTIALS,
+                "Invalid credentials"
+            ));
 
         if (!passwordEncoder.matches(request.password(), user.getPasswordHash())) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid credentials");
+            throw new ApiException(
+                HttpStatus.UNAUTHORIZED,
+                ErrorCodes.AUTH_INVALID_CREDENTIALS,
+                "Invalid credentials"
+            );
         }
         return issueTokens(user, null);
     }
@@ -71,13 +85,21 @@ public class AuthService {
         JwtService.RefreshTokenClaims claims = jwtService.parseRefreshToken(request.refreshToken());
         String refreshTokenHash = hashToken(request.refreshToken());
         RefreshTokenSession currentSession = refreshTokenSessionRepository.findById(claims.sessionId())
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Refresh session not found"));
+            .orElseThrow(() -> new ApiException(
+                HttpStatus.UNAUTHORIZED,
+                ErrorCodes.AUTH_REFRESH_SESSION_NOT_FOUND,
+                "Refresh session not found"
+            ));
 
         Instant now = Instant.now();
         if (!currentSession.getUser().getId().equals(claims.userId())
             || !refreshTokenHash.equals(currentSession.getTokenHash())
             || !currentSession.isActive(now)) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Refresh token is invalid");
+            throw new ApiException(
+                HttpStatus.UNAUTHORIZED,
+                ErrorCodes.AUTH_INVALID_REFRESH_TOKEN,
+                "Refresh token is invalid"
+            );
         }
 
         currentSession.setRevokedAt(now);
@@ -89,7 +111,7 @@ public class AuthService {
         JwtService.RefreshTokenClaims claims;
         try {
             claims = jwtService.parseRefreshToken(request.refreshToken());
-        } catch (ResponseStatusException ex) {
+        } catch (ApiException ex) {
             return;
         }
 
@@ -105,7 +127,11 @@ public class AuthService {
     @Transactional(readOnly = true)
     public UserResponse getUserById(java.util.UUID userId) {
         User user = userRepository.findById(userId)
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+            .orElseThrow(() -> new ApiException(
+                HttpStatus.NOT_FOUND,
+                ErrorCodes.AUTH_USER_NOT_FOUND,
+                "User not found"
+            ));
         return new UserResponse(user.getId(), user.getEmail(), user.getCreatedAt());
     }
 
@@ -115,6 +141,8 @@ public class AuthService {
         newSession.setUser(user);
         newSession.setIssuedAt(now);
         newSession.setExpiresAt(now.plus(jwtService.refreshTokenExpiresInDays(), ChronoUnit.DAYS));
+        // Persist once to obtain session id before minting JWT; placeholder satisfies NOT NULL constraint.
+        newSession.setTokenHash("pending-" + UUID.randomUUID());
         refreshTokenSessionRepository.saveAndFlush(newSession);
 
         String refreshToken = jwtService.createRefreshToken(user.getId(), newSession.getId());

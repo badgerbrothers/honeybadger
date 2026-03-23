@@ -1,6 +1,8 @@
 package com.badgers.auth.service;
 
 import com.badgers.auth.config.JwtProperties;
+import com.badgers.auth.error.ApiException;
+import com.badgers.auth.error.ErrorCodes;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
@@ -14,7 +16,6 @@ import java.util.UUID;
 import javax.crypto.SecretKey;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
-import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class JwtService {
@@ -68,15 +69,27 @@ public class JwtService {
     public JwtUserPrincipal parseAccessToken(String token) {
         Claims claims = parseAndValidate(token);
         ensureTokenType(claims, ACCESS_TOKEN_TYPE);
-        UUID userId = requiredUuid(claims.getSubject(), "Token subject is missing");
+        UUID userId = requiredUuid(
+            claims.getSubject(),
+            ErrorCodes.AUTH_TOKEN_SUBJECT_INVALID,
+            "Token subject is missing"
+        );
         return new JwtUserPrincipal(userId, claims.get("email", String.class));
     }
 
     public RefreshTokenClaims parseRefreshToken(String token) {
         Claims claims = parseAndValidate(token);
         ensureTokenType(claims, REFRESH_TOKEN_TYPE);
-        UUID userId = requiredUuid(claims.getSubject(), "Token subject is missing");
-        UUID sessionId = requiredUuid(claims.get(SESSION_ID_CLAIM, String.class), "Token session is missing");
+        UUID userId = requiredUuid(
+            claims.getSubject(),
+            ErrorCodes.AUTH_TOKEN_SUBJECT_INVALID,
+            "Token subject is missing"
+        );
+        UUID sessionId = requiredUuid(
+            claims.get(SESSION_ID_CLAIM, String.class),
+            ErrorCodes.AUTH_TOKEN_SESSION_INVALID,
+            "Token session is missing"
+        );
         return new RefreshTokenClaims(userId, sessionId, claims.getExpiration().toInstant());
     }
 
@@ -98,7 +111,12 @@ public class JwtService {
                 .parseSignedClaims(token)
                 .getPayload();
         } catch (JwtException | IllegalArgumentException ex) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid token", ex);
+            throw new ApiException(
+                HttpStatus.UNAUTHORIZED,
+                ErrorCodes.AUTH_INVALID_TOKEN,
+                "Invalid token",
+                ex
+            );
         }
     }
 
@@ -116,18 +134,22 @@ public class JwtService {
     private static void ensureTokenType(Claims claims, String expectedType) {
         String tokenType = claims.get(TOKEN_TYPE_CLAIM, String.class);
         if (!expectedType.equals(tokenType)) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid token type");
+            throw new ApiException(
+                HttpStatus.UNAUTHORIZED,
+                ErrorCodes.AUTH_INVALID_TOKEN_TYPE,
+                "Invalid token type"
+            );
         }
     }
 
-    private static UUID requiredUuid(String value, String errorMessage) {
+    private static UUID requiredUuid(String value, String code, String errorMessage) {
         if (value == null || value.isBlank()) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, errorMessage);
+            throw new ApiException(HttpStatus.UNAUTHORIZED, code, errorMessage);
         }
         try {
             return UUID.fromString(value);
         } catch (IllegalArgumentException ex) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, errorMessage, ex);
+            throw new ApiException(HttpStatus.UNAUTHORIZED, code, errorMessage, ex);
         }
     }
 
