@@ -21,8 +21,15 @@ class Project(Base, TimestampMixin):
 
     # Relationships
     nodes: Mapped[list["ProjectNode"]] = relationship(back_populates="project", cascade="all, delete-orphan")
-    conversations: Mapped[list["Conversation"]] = relationship(back_populates="project")
-    artifacts: Mapped[list["Artifact"]] = relationship(back_populates="project")
+    conversations: Mapped[list["Conversation"]] = relationship(
+        back_populates="project",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    artifacts: Mapped[list["Artifact"]] = relationship(
+        back_populates="project",
+        passive_deletes=True,
+    )
 
 class ProjectNode(Base, TimestampMixin):
     __tablename__ = "project_nodes"

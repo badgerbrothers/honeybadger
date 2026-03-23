@@ -21,7 +21,10 @@ class Conversation(Base, TimestampMixin):
     # Relationships
     project: Mapped["Project"] = relationship(back_populates="conversations")
     messages: Mapped[list["Message"]] = relationship(back_populates="conversation", cascade="all, delete-orphan")
-    tasks: Mapped[list["Task"]] = relationship(back_populates="conversation")
+    tasks: Mapped[list["Task"]] = relationship(
+        back_populates="conversation",
+        passive_deletes=True,
+    )
 
 class Message(Base, TimestampMixin):
     __tablename__ = "messages"

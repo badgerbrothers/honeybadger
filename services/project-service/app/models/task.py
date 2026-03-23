@@ -48,4 +48,7 @@ class TaskRun(Base, TimestampMixin):
     # Relationships
     task: Mapped["Task"] = relationship(back_populates="runs", foreign_keys=[task_id])
     sandbox_session: Mapped["SandboxSession | None"] = relationship(back_populates="task_run")
-    artifacts: Mapped[list["Artifact"]] = relationship(back_populates="task_run")
+    artifacts: Mapped[list["Artifact"]] = relationship(
+        back_populates="task_run",
+        passive_deletes=True,
+    )
