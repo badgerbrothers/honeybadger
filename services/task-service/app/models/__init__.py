@@ -8,6 +8,7 @@ from .artifact import Artifact, ArtifactType
 from .document_chunk import DocumentChunk
 from .document_index_job import DocumentIndexJob, DocumentIndexStatus
 from .rag_collection import RagCollection
+from .user_model_config import UserModelConfig
 
 __all__ = [
     "Base",
@@ -28,4 +29,5 @@ __all__ = [
     "DocumentIndexJob",
     "DocumentIndexStatus",
     "RagCollection",
+    "UserModelConfig",
 ]

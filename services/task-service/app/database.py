@@ -56,6 +56,109 @@ async def init_db():
                 await conn.execute(
                     text(
                         """
+                        ALTER TABLE IF EXISTS tasks
+                        ADD COLUMN IF NOT EXISTS queue_status queuestatus
+                        """
+                    )
+                )
+                await conn.execute(
+                    text(
+                        """
+                        ALTER TABLE IF EXISTS tasks
+                        ADD COLUMN IF NOT EXISTS scheduled_at TIMESTAMP WITHOUT TIME ZONE
+                        """
+                    )
+                )
+                await conn.execute(
+                    text(
+                        """
+                        ALTER TABLE IF EXISTS tasks
+                        ADD COLUMN IF NOT EXISTS priority INTEGER
+                        """
+                    )
+                )
+                await conn.execute(
+                    text(
+                        """
+                        ALTER TABLE IF EXISTS tasks
+                        ADD COLUMN IF NOT EXISTS assigned_agent VARCHAR(100)
+                        """
+                    )
+                )
+                await conn.execute(
+                    text(
+                        """
+                        UPDATE tasks
+                        SET queue_status = 'SCHEDULED'
+                        WHERE queue_status IS NULL
+                        """
+                    )
+                )
+                await conn.execute(
+                    text(
+                        """
+                        UPDATE tasks
+                        SET priority = 0
+                        WHERE priority IS NULL
+                        """
+                    )
+                )
+                await conn.execute(
+                    text(
+                        """
+                        ALTER TABLE IF EXISTS tasks
+                        ALTER COLUMN queue_status SET DEFAULT 'SCHEDULED'
+                        """
+                    )
+                )
+                await conn.execute(
+                    text(
+                        """
+                        ALTER TABLE IF EXISTS tasks
+                        ALTER COLUMN queue_status SET NOT NULL
+                        """
+                    )
+                )
+                await conn.execute(
+                    text(
+                        """
+                        ALTER TABLE IF EXISTS tasks
+                        ALTER COLUMN priority SET DEFAULT 0
+                        """
+                    )
+                )
+                await conn.execute(
+                    text(
+                        """
+                        ALTER TABLE IF EXISTS tasks
+                        ALTER COLUMN priority SET NOT NULL
+                        """
+                    )
+                )
+                await conn.execute(
+                    text(
+                        """
+                        CREATE INDEX IF NOT EXISTS ix_tasks_queue_status ON tasks (queue_status)
+                        """
+                    )
+                )
+                await conn.execute(
+                    text(
+                        """
+                        CREATE INDEX IF NOT EXISTS ix_tasks_scheduled_at ON tasks (scheduled_at)
+                        """
+                    )
+                )
+                await conn.execute(
+                    text(
+                        """
+                        CREATE INDEX IF NOT EXISTS ix_tasks_priority ON tasks (priority)
+                        """
+                    )
+                )
+                await conn.execute(
+                    text(
+                        """
                         ALTER TABLE IF EXISTS projects
                         ADD COLUMN IF NOT EXISTS active_rag_collection_id UUID
                         """

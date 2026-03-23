@@ -24,6 +24,9 @@ from .sandbox import SandboxSessionResponse
 from .artifact import ArtifactCreate, ArtifactResponse
 from .task_queue import TaskKanbanResponse
 from .model_catalog import ModelCatalogResponse
+from .model_settings import ModelProviderSettings, ModelSettingsPayload, ModelSettingsResponse
+from .role_catalog import RoleCatalogItem
+from .skill_catalog import SkillCatalogItem
 
 __all__ = [
     "ProjectCreate",
@@ -46,4 +49,9 @@ __all__ = [
     "ArtifactResponse",
     "TaskKanbanResponse",
     "ModelCatalogResponse",
+    "ModelProviderSettings",
+    "ModelSettingsPayload",
+    "ModelSettingsResponse",
+    "RoleCatalogItem",
+    "SkillCatalogItem",
 ]

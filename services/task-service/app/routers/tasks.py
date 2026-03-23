@@ -1,8 +1,12 @@
 """Tasks API endpoints."""
+import re
+import uuid
+from pathlib import Path
+from typing import Any
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-import uuid
 import structlog
 
 from app.config import settings
@@ -11,7 +15,16 @@ from app.models.conversation import Conversation
 from app.models.project import Project
 from app.models.rag_collection import RagCollection
 from app.models.task import QueueStatus, Task, TaskRun, TaskStatus
+from app.models.user_model_config import UserModelConfig
 from app.schemas.model_catalog import ModelCatalogResponse
+from app.schemas.model_settings import (
+    ModelProviderSettings,
+    ModelSettingsPayload,
+    ModelSettingsResponse,
+    ProviderId,
+)
+from app.schemas.role_catalog import RoleCatalogItem
+from app.schemas.skill_catalog import SkillCatalogItem
 from app.schemas.task import TaskCreate, TaskUpdate, TaskResponse, TaskRunResponse
 from app.schemas.task_queue import TaskKanbanResponse
 from app.security.auth import CurrentUser, get_current_user
@@ -19,10 +32,227 @@ from app.services.queue_service import queue_service
 
 router = APIRouter(prefix="/api/tasks", tags=["tasks"])
 logger = structlog.get_logger(__name__)
+_MARKDOWN_EXTENSIONS = {".md", ".markdown"}
+_ICON_KIND_BY_CATEGORY = {
+    "engineering": "terminal",
+    "design": "file",
+    "testing": "file",
+    "product": "file",
+    "project-management": "file",
+    "support": "file",
+    "academic": "file",
+    "marketing": "browser",
+    "sales": "browser",
+    "paid-media": "browser",
+    "specialized": "python",
+    "spatial-computing": "python",
+    "game-development": "python",
+}
+_SKILL_ICON_KIND_BY_CATEGORY = {
+    "commands": "terminal",
+    "reference": "file",
+}
+_MODEL_PROVIDER_IDS: tuple[ProviderId, ...] = ("openai", "anthropic", "relay")
+
+
+def _slugify(raw: str, fallback: str = "item") -> str:
+    normalized = re.sub(r"[^a-z0-9]+", "-", raw.lower()).strip("-")
+    return normalized or fallback
+
+
+def _markdown_title(markdown: str, fallback: str) -> str:
+    for line in markdown.splitlines():
+        trimmed = line.strip()
+        if not trimmed:
+            continue
+        if trimmed.startswith("#"):
+            title = re.sub(r"^#+\s*", "", trimmed).strip()
+            return title or fallback
+    return fallback
+
+
+def _markdown_summary(markdown: str, default_text: str) -> str:
+    for line in markdown.splitlines():
+        trimmed = line.strip()
+        if not trimmed:
+            continue
+        if trimmed.startswith("#") or trimmed.startswith(">") or trimmed.startswith("-"):
+            continue
+        return f"{trimmed[:80]}..." if len(trimmed) > 80 else trimmed
+    return default_text
+
+
+def _skill_tools_from_markdown(markdown: str) -> list[str]:
+    lower = markdown.lower()
+    tools: list[str] = []
+
+    def add(tool: str) -> None:
+        if tool not in tools:
+            tools.append(tool)
+
+    if "web browser" in lower or "browser" in lower or "网络浏览器" in lower:
+        add("browser")
+    if "shell" in lower or "terminal" in lower or "终端" in lower:
+        add("shell")
+    if "python" in lower:
+        add("python")
+    if "file i/o" in lower or "fileio" in lower or "文件" in lower:
+        add("fileio")
+
+    if not tools:
+        tools.append("fileio")
+    return tools
+
+
+def _build_role_catalog(roles_dir: Path) -> list[RoleCatalogItem]:
+    if not roles_dir.exists():
+        logger.warning("roles_dir_missing", roles_dir=str(roles_dir))
+        return []
+
+    role_files = sorted(
+        path
+        for path in roles_dir.rglob("*")
+        if path.is_file() and path.suffix.lower() in _MARKDOWN_EXTENSIONS
+    )
+
+    roles: list[RoleCatalogItem] = []
+    for role_file in role_files:
+        rel_path = role_file.relative_to(roles_dir).as_posix()
+        rel_stem = str(Path(rel_path).with_suffix(""))
+        category = Path(rel_path).parts[0] if len(Path(rel_path).parts) > 1 else "general"
+        fallback_name = role_file.stem.replace("_", " ").replace("-", " ").strip().title() or "Role"
+
+        try:
+            markdown = role_file.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            markdown = role_file.read_text(encoding="utf-8", errors="ignore")
+
+        roles.append(
+            RoleCatalogItem(
+                id=_slugify(rel_stem, fallback="role"),
+                name=_markdown_title(markdown, fallback_name),
+                summary=_markdown_summary(markdown, default_text="Role markdown document"),
+                iconKind=_ICON_KIND_BY_CATEGORY.get(category, "file"),
+                markdown=markdown,
+                category=category,
+                path=rel_path,
+            )
+        )
+    return roles
+
+
+def _build_skill_catalog(skills_dir: Path) -> list[SkillCatalogItem]:
+    if not skills_dir.exists():
+        logger.warning("skills_dir_missing", skills_dir=str(skills_dir))
+        return []
+
+    skill_files = sorted(
+        path
+        for path in skills_dir.rglob("*")
+        if path.is_file() and path.suffix.lower() in _MARKDOWN_EXTENSIONS
+    )
+
+    skills: list[SkillCatalogItem] = []
+    for skill_file in skill_files:
+        rel_path = skill_file.relative_to(skills_dir).as_posix()
+        rel_stem = str(Path(rel_path).with_suffix(""))
+        category = Path(rel_path).parts[0] if len(Path(rel_path).parts) > 1 else "general"
+        fallback_name = skill_file.stem.replace("_", " ").replace("-", " ").strip().title() or "Skill"
+
+        try:
+            markdown = skill_file.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            markdown = skill_file.read_text(encoding="utf-8", errors="ignore")
+
+        skills.append(
+            SkillCatalogItem(
+                id=_slugify(rel_stem, fallback="skill"),
+                name=_markdown_title(markdown, fallback_name),
+                summary=_markdown_summary(markdown, default_text="Skill markdown document"),
+                iconKind=_SKILL_ICON_KIND_BY_CATEGORY.get(category, "file"),
+                tools=_skill_tools_from_markdown(markdown),
+                markdown=markdown,
+                category=category,
+                path=rel_path,
+            )
+        )
+    return skills
 
 
 def _normalize_model(model: str) -> str:
     return model.strip().lower()
+
+
+def _default_model_settings_payload() -> dict[str, Any]:
+    return {
+        "active_provider": "openai",
+        "providers": {
+            "openai": {
+                "enabled": True,
+                "api_key": "",
+                "base_url": "https://api.openai.com/v1",
+                "main_model": settings.default_main_model,
+                "note": "Official OpenAI API",
+            },
+            "anthropic": {
+                "enabled": False,
+                "api_key": "",
+                "base_url": "https://api.anthropic.com",
+                "main_model": "claude-3-opus-20240229",
+                "note": "Anthropic / A-site provider",
+            },
+            "relay": {
+                "enabled": False,
+                "api_key": "",
+                "base_url": "https://your-relay.example.com/v1",
+                "main_model": settings.default_main_model,
+                "note": "OpenAI-compatible relay gateway",
+            },
+        },
+    }
+
+
+def _normalized_model_settings_payload(
+    payload: dict[str, Any] | None = None,
+) -> ModelSettingsPayload:
+    defaults = _default_model_settings_payload()
+    active_provider = defaults["active_provider"]
+    if isinstance(payload, dict):
+        active_provider = str(payload.get("active_provider") or active_provider)
+
+    providers_input = payload.get("providers") if isinstance(payload, dict) else None
+    merged_providers: dict[ProviderId, ModelProviderSettings] = {}
+    for provider_id in _MODEL_PROVIDER_IDS:
+        default_provider = defaults["providers"][provider_id]
+        incoming_provider = (
+            providers_input.get(provider_id)
+            if isinstance(providers_input, dict)
+            else None
+        )
+        if not isinstance(incoming_provider, dict):
+            incoming_provider = {}
+
+        merged_providers[provider_id] = ModelProviderSettings(
+            enabled=bool(incoming_provider.get("enabled", default_provider["enabled"])),
+            api_key=str(incoming_provider.get("api_key", default_provider["api_key"]) or ""),
+            base_url=str(incoming_provider.get("base_url", default_provider["base_url"]) or ""),
+            main_model=str(
+                incoming_provider.get("main_model", default_provider["main_model"])
+                or default_provider["main_model"]
+            ),
+            note=str(incoming_provider.get("note", default_provider["note"]) or ""),
+        )
+
+    merged_providers["openai"].base_url = defaults["providers"]["openai"]["base_url"]
+    merged_providers["anthropic"].base_url = defaults["providers"]["anthropic"]["base_url"]
+
+    if active_provider not in _MODEL_PROVIDER_IDS:
+        active_provider = "openai"
+
+    return ModelSettingsPayload(
+        active_provider=active_provider,  # type: ignore[arg-type]
+        providers=merged_providers,
+    )
 
 
 def _supported_model_lookup() -> dict[str, str]:
@@ -114,6 +344,16 @@ async def _ensure_owned_project_and_conversation(
     return project
 
 
+async def _get_user_model_config(
+    user: CurrentUser,
+    db: AsyncSession,
+) -> UserModelConfig | None:
+    result = await db.execute(
+        select(UserModelConfig).where(UserModelConfig.owner_user_id == user.id)
+    )
+    return result.scalar_one_or_none()
+
+
 @router.get("/", response_model=list[TaskResponse])
 async def list_tasks(
     conversation_id: uuid.UUID | None = Query(None),
@@ -163,6 +403,88 @@ async def get_model_catalog():
         default_model=default_model,
         supported_models=list(_supported_model_lookup().values()),
     )
+
+
+@router.get("/model-settings", response_model=ModelSettingsResponse)
+async def get_model_settings(
+    db: AsyncSession = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    """Return persisted model/provider settings for the current user."""
+    config = await _get_user_model_config(user=user, db=db)
+    if config is None:
+        payload = _normalized_model_settings_payload()
+        return ModelSettingsResponse(**payload.model_dump(), updated_at=None)
+
+    payload = _normalized_model_settings_payload(
+        {
+            "active_provider": config.active_provider,
+            "providers": config.providers_payload,
+        }
+    )
+    return ModelSettingsResponse(**payload.model_dump(), updated_at=config.updated_at)
+
+
+@router.put("/model-settings", response_model=ModelSettingsResponse)
+async def put_model_settings(
+    request: ModelSettingsPayload,
+    db: AsyncSession = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    """Persist model/provider settings for the current user."""
+    normalized = _normalized_model_settings_payload(request.model_dump())
+    config = await _get_user_model_config(user=user, db=db)
+
+    if config is None:
+        config = UserModelConfig(
+            owner_user_id=user.id,
+            active_provider=normalized.active_provider,
+            providers_payload=normalized.model_dump()["providers"],
+        )
+        db.add(config)
+    else:
+        config.active_provider = normalized.active_provider
+        config.providers_payload = normalized.model_dump()["providers"]
+
+    await db.commit()
+    await db.refresh(config)
+    return ModelSettingsResponse(**normalized.model_dump(), updated_at=config.updated_at)
+
+
+@router.get("/roles", response_model=list[RoleCatalogItem])
+async def list_roles(
+    _user: CurrentUser = Depends(get_current_user),
+):
+    """Return role markdown docs discovered from shared/roles."""
+    roles_dir = Path(settings.roles_dir)
+    try:
+        return _build_role_catalog(roles_dir)
+    except Exception as exc:
+        logger.error(
+            "roles_catalog_load_failed",
+            roles_dir=str(roles_dir),
+            error=str(exc),
+            exc_info=True,
+        )
+        raise HTTPException(status_code=500, detail="Failed to load roles catalog") from exc
+
+
+@router.get("/skills", response_model=list[SkillCatalogItem])
+async def list_skills(
+    _user: CurrentUser = Depends(get_current_user),
+):
+    """Return skill markdown docs discovered from shared/skills."""
+    skills_dir = Path(settings.skills_dir)
+    try:
+        return _build_skill_catalog(skills_dir)
+    except Exception as exc:
+        logger.error(
+            "skills_catalog_load_failed",
+            skills_dir=str(skills_dir),
+            error=str(exc),
+            exc_info=True,
+        )
+        raise HTTPException(status_code=500, detail="Failed to load skills catalog") from exc
 
 
 @router.get("/kanban", response_model=TaskKanbanResponse)

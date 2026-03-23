@@ -1,6 +1,54 @@
 """Configuration management."""
+from pathlib import Path
+
 from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+def _default_roles_dir() -> str:
+    """Discover a sensible default location for shared role markdown files."""
+    candidate_dirs = [
+        Path.cwd() / "shared" / "roles",
+        Path.cwd().parent.parent / "shared" / "roles",
+        Path("/app/shared/roles"),
+    ]
+    config_file = Path(__file__).resolve()
+    for parent in config_file.parents:
+        candidate_dirs.append(parent / "shared" / "roles")
+
+    seen: set[str] = set()
+    for candidate in candidate_dirs:
+        key = str(candidate)
+        if key in seen:
+            continue
+        seen.add(key)
+        if candidate.exists():
+            return key
+
+    return str(Path("/app/shared/roles"))
+
+
+def _default_skills_dir() -> str:
+    """Discover a sensible default location for shared skill markdown files."""
+    candidate_dirs = [
+        Path.cwd() / "shared" / "skills",
+        Path.cwd().parent.parent / "shared" / "skills",
+        Path("/app/shared/skills"),
+    ]
+    config_file = Path(__file__).resolve()
+    for parent in config_file.parents:
+        candidate_dirs.append(parent / "shared" / "skills")
+
+    seen: set[str] = set()
+    for candidate in candidate_dirs:
+        key = str(candidate)
+        if key in seen:
+            continue
+        seen.add(key)
+        if candidate.exists():
+            return key
+
+    return str(Path("/app/shared/skills"))
 
 
 class Settings(BaseSettings):
@@ -68,6 +116,14 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("S3_SECURE", "MINIO_SECURE"),
     )
     storage_service_url: str = "http://localhost:8005"
+    roles_dir: str = Field(
+        default_factory=_default_roles_dir,
+        validation_alias=AliasChoices("ROLES_DIR"),
+    )
+    skills_dir: str = Field(
+        default_factory=_default_skills_dir,
+        validation_alias=AliasChoices("SKILLS_DIR"),
+    )
 
     @property
     def rabbitmq_url(self) -> str:
