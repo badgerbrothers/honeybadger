@@ -20,7 +20,7 @@ from app.schemas.rag_collection import (
 )
 from app.schemas.rag_file import RagFileResponse, RagFileUploadResponse
 from app.security.auth import CurrentUser, get_current_user
-from app.services.rag_service import rag_service
+from app.services.index_job_service import index_job_service
 from app.services.storage import storage_service
 
 router = APIRouter(prefix="/api/rags", tags=["rag_collections"])
@@ -181,7 +181,7 @@ async def upload_rag_file(
         await db.commit()
         await db.refresh(rag_file)
 
-        index_job = await rag_service.schedule_indexing(
+        index_job = await index_job_service.schedule_indexing(
             db=db,
             rag_collection_id=rag_id,
             storage_path=object_name,

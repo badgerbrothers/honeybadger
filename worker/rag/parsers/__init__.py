@@ -1,13 +1,14 @@
-"""Document parsers for RAG system."""
-from .base import BaseParser
-from .txt_parser import TxtParser
-from .markdown_parser import MarkdownParser
-from .pdf_parser import PdfParser
-from .exceptions import (
-    ParserError,
-    UnsupportedFormatError,
-    ParseError,
+"""Compatibility wrappers around shared parser utilities."""
+
+from shared.rag.parsers import (
+    BaseParser,
     FileReadError,
+    MarkdownParser,
+    ParseError,
+    ParserError,
+    PdfParser,
+    TxtParser,
+    UnsupportedFormatError,
 )
 
 __all__ = [

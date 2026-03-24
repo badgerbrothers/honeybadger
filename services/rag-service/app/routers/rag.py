@@ -8,7 +8,8 @@ from pydantic import BaseModel
 from app.database import get_db
 from app.models.project import Project
 from app.security.auth import CurrentUser, get_current_user
-from app.services.rag_service import rag_service
+from app.services.index_job_service import index_job_service
+from app.services.search_service import search_service
 
 router = APIRouter(prefix="/api/rag/projects", tags=["rag"])
 
@@ -47,7 +48,7 @@ async def index_document(
 ):
     """Index a document for RAG retrieval."""
     await _ensure_owned_project_or_404(project_id=project_id, user=user, db=db)
-    job = await rag_service.requeue_node(project_id, request.node_id, db)
+    job = await index_job_service.requeue_node(project_id, request.node_id, db)
     if job is None:
         raise HTTPException(status_code=404, detail="Project file not found")
     return {
@@ -70,7 +71,7 @@ async def search_chunks(
 ):
     """Search for similar document chunks."""
     await _ensure_owned_project_or_404(project_id=project_id, user=user, db=db)
-    chunks = await rag_service.search(
+    chunks = await search_service.search(
         project_id=project_id,
         query=request.query,
         top_k=request.top_k,
@@ -99,7 +100,7 @@ async def list_chunks(
 ):
     """List all indexed chunks for a project."""
     await _ensure_owned_project_or_404(project_id=project_id, user=user, db=db)
-    return await rag_service.list_chunks(project_id, db)
+    return await search_service.list_chunks(project_id, db)
 
 
 @router.delete("/{project_id}/chunks/{chunk_id}", status_code=204)
@@ -111,7 +112,7 @@ async def delete_chunk(
 ):
     """Delete a document chunk."""
     await _ensure_owned_project_or_404(project_id=project_id, user=user, db=db)
-    deleted = await rag_service.delete_chunk(project_id, chunk_id, db)
+    deleted = await search_service.delete_chunk(project_id, chunk_id, db)
     if not deleted:
         raise HTTPException(status_code=404, detail="Chunk not found")
     return None

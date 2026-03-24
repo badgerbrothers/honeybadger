@@ -14,6 +14,7 @@ COPY worker/pyproject.toml worker/uv.lock /app/worker/
 RUN uv sync --project /app/worker --frozen --no-dev
 
 COPY worker /app/worker
+COPY shared /app/shared
 
 WORKDIR /app
 

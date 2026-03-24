@@ -1,5 +1,4 @@
 """Document indexing pipeline."""
-from pathlib import Path
 from typing import Dict, List
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import delete, text
@@ -8,23 +7,22 @@ try:
 except ModuleNotFoundError:  # pragma: no cover - package-import fallback
     from worker.db_models import DocumentChunk
 from .embeddings import EmbeddingService
-from .chunker import chunk_text
-from .semantic_chunker import SemanticChunker
 from .parsers import TxtParser, MarkdownParser, PdfParser
+from shared.rag.indexing_core import DocumentIndexingCore
 
 
-class DocumentIndexer:
+class DocumentIndexer(DocumentIndexingCore):
     """Service for indexing documents into vector database."""
 
     def __init__(self, embedding_service: EmbeddingService, db_session: AsyncSession):
-        self.embedding_service = embedding_service
-        self.db_session = db_session
-        self.parsers = {
+        parsers = {
             ".txt": TxtParser(),
             ".md": MarkdownParser(),
             ".markdown": MarkdownParser(),
             ".pdf": PdfParser(),
         }
+        super().__init__(embedding_service=embedding_service, parsers=parsers)
+        self.db_session = db_session
 
     async def index_document(
         self,
@@ -38,14 +36,7 @@ class DocumentIndexer:
             Number of chunks created
         """
         try:
-            # Parse document
-            text = await self._parse_document(file_path)
-
-            # Chunk document
-            chunks = await self._chunk_document(text)
-
-            # Generate embeddings
-            chunks_with_embeddings = await self._generate_embeddings(chunks)
+            chunks_with_embeddings = await self.prepare_document_chunks(file_path)
 
             # Store chunks
             await self._store_chunks(
@@ -55,47 +46,22 @@ class DocumentIndexer:
                 chunks=chunks_with_embeddings,
             )
 
-            return len(chunks)
+            return len(chunks_with_embeddings)
         except Exception:
             await self.db_session.rollback()
             raise
 
     async def _parse_document(self, file_path: str) -> str:
         """Parse document to extract text."""
-        ext = Path(file_path).suffix.lower()
-        parser = self.parsers.get(ext)
-
-        if not parser:
-            raise ValueError(f"Unsupported file type: {ext}")
-
-        result = parser.parse(Path(file_path))
-        return result["text"]
+        return await self.parse_document(file_path)
 
     async def _chunk_document(self, text: str, use_semantic: bool = True) -> List[Dict]:
         """Chunk document text with optional semantic mode."""
-        if use_semantic:
-            semantic_chunker = SemanticChunker(max_chunk_size=512, overlap=50)
-            return semantic_chunker.chunk_text(text)
-        return chunk_text(text, chunk_size=512, overlap=50)
+        return await self.chunk_document(text, use_semantic=use_semantic)
 
     async def _generate_embeddings(self, chunks: List[Dict]) -> List[Dict]:
         """Generate embeddings for chunks."""
-        texts = [chunk["content"] for chunk in chunks]
-
-        # Batch process (max 2048 per batch)
-        all_embeddings = []
-        batch_size = 2048
-
-        for i in range(0, len(texts), batch_size):
-            batch = texts[i:i + batch_size]
-            embeddings = await self.embedding_service.generate_embeddings_batch(batch)
-            all_embeddings.extend(embeddings)
-
-        # Add embeddings to chunks
-        for chunk, embedding in zip(chunks, all_embeddings):
-            chunk["embedding"] = embedding
-
-        return chunks
+        return await self.generate_embeddings(chunks)
 
     async def _store_chunks(
         self,
@@ -118,17 +84,15 @@ class DocumentIndexer:
             )
         )
 
-        for chunk in chunks:
-            db_chunk = DocumentChunk(
-                project_id=project_id,
-                rag_collection_id=rag_collection_id,
-                file_path=file_path,
-                chunk_index=chunk["chunk_index"],
-                content=chunk["content"],
-                embedding=chunk["embedding"],
-                token_count=chunk["token_count"],
-                chunk_metadata={"start_pos": chunk["start_pos"], "end_pos": chunk["end_pos"]}
-            )
+        payloads = self.build_chunk_payloads(
+            project_id=project_id,
+            rag_collection_id=rag_collection_id,
+            file_path=file_path,
+            chunks=chunks,
+        )
+
+        for payload in payloads:
+            db_chunk = DocumentChunk(**payload)
             self.db_session.add(db_chunk)
 
         await self.db_session.flush()

@@ -188,7 +188,8 @@ services:
 
   rag-service:
     build:
-      context: ./services/rag-service
+      context: .
+      dockerfile: services/rag-service/Dockerfile
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-badgers}:${POSTGRES_PASSWORD:-badgers_dev_password}@postgres:5432/${POSTGRES_DB:-badgers}
       REDIS_URL: redis://redis:6379/0

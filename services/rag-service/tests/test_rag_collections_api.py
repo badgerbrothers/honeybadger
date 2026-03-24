@@ -42,7 +42,7 @@ async def test_create_list_and_upload_rag_collection(tmp_path: Path):
     app.dependency_overrides[get_current_user] = lambda: CurrentUser(id=owner_user_id)
 
     rag_collections_router.storage_service.upload_file = AsyncMock(return_value="ok")
-    rag_collections_router.rag_service.schedule_indexing = AsyncMock(
+    rag_collections_router.index_job_service.schedule_indexing = AsyncMock(
         return_value=SimpleNamespace(id=uuid.uuid4())
     )
 

@@ -10,7 +10,7 @@ from app.models.artifact import Artifact
 from app.models.project import Project, ProjectNode, NodeType
 from app.schemas.project import ProjectCreate, ProjectUpdate, ProjectResponse, ProjectNodeResponse, ProjectFileUploadResponse
 from app.schemas.artifact import ArtifactResponse
-from app.services.rag_service import rag_service
+from app.services.index_job_service import index_job_service
 from app.services.storage import storage_service
 
 logger = structlog.get_logger()
@@ -111,7 +111,7 @@ async def upload_project_file(
 
         await db.commit()
         await db.refresh(node)
-        await rag_service.schedule_indexing(
+        await index_job_service.schedule_indexing(
             project_id=project_id,
             project_node_id=node.id,
             storage_path=node.path,

@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.document_chunk import DocumentChunk
 from app.rag.embeddings import EmbeddingService
+from shared.rag.retrieval_core import build_scope_filters, reciprocal_rank_fusion
 
 logger = structlog.get_logger(__name__)
 
@@ -55,7 +56,8 @@ class HybridRetriever:
         top_k: int,
     ) -> list[dict[str, Any]]:
         embedding = await self.embedding_service.generate_embedding(query)
-        scope_filters = self._scope_filters(
+        scope_filters = build_scope_filters(
+            DocumentChunk,
             project_id=project_id,
             rag_collection_id=rag_collection_id,
         )
@@ -84,7 +86,8 @@ class HybridRetriever:
     ) -> list[dict[str, Any]]:
         ts_query = func.websearch_to_tsquery("english", query)
         rank_expr = func.ts_rank_cd(DocumentChunk.text_search_vector, ts_query)
-        scope_filters = self._scope_filters(
+        scope_filters = build_scope_filters(
+            DocumentChunk,
             project_id=project_id,
             rag_collection_id=rag_collection_id,
         )
@@ -112,45 +115,7 @@ class HybridRetriever:
         k: int = 60,
     ) -> list[dict[str, Any]]:
         """Fuse two ranked lists with Reciprocal Rank Fusion."""
-        fused: dict[int, dict[str, Any]] = {}
-
-        for rank, item in enumerate(vector_results, start=1):
-            chunk_id = item["id"]
-            entry = fused.setdefault(
-                chunk_id,
-                {"chunk": item["chunk"], "score": 0.0, "sources": set()},
-            )
-            entry["score"] += 1.0 / (k + rank)
-            entry["sources"].add(item["source"])
-
-        for rank, item in enumerate(fulltext_results, start=1):
-            chunk_id = item["id"]
-            entry = fused.setdefault(
-                chunk_id,
-                {"chunk": item["chunk"], "score": 0.0, "sources": set()},
-            )
-            entry["score"] += 1.0 / (k + rank)
-            entry["sources"].add(item["source"])
-
-        sorted_rows = sorted(fused.values(), key=lambda x: x["score"], reverse=True)
-        max_score = sorted_rows[0]["score"] if sorted_rows else 0.0
-        rows = []
-        for row in sorted_rows:
-            chunk = row["chunk"]
-            normalized = (row["score"] / max_score) if max_score > 0 else 0.0
-            rows.append(
-                {
-                    "id": chunk.id,
-                    "content": chunk.content,
-                    "file_path": chunk.file_path,
-                    "chunk_index": chunk.chunk_index,
-                    "score": float(normalized),
-                    "similarity": float(normalized),
-                    "raw_score": float(row["score"]),
-                    "metadata": chunk.chunk_metadata,
-                    "sources": sorted(row["sources"]),
-                }
-            )
+        rows = reciprocal_rank_fusion(vector_results, fulltext_results, k=k)
         logger.info(
             "hybrid_retrieval_fused",
             vector_candidates=len(vector_results),
@@ -158,15 +123,3 @@ class HybridRetriever:
             fused_candidates=len(rows),
         )
         return rows
-
-    @staticmethod
-    def _scope_filters(
-        *,
-        project_id: uuid.UUID | str | None,
-        rag_collection_id: uuid.UUID | str | None,
-    ) -> list[Any]:
-        if rag_collection_id is not None:
-            return [DocumentChunk.rag_collection_id == rag_collection_id]
-        if project_id is not None:
-            return [DocumentChunk.project_id == project_id]
-        raise ValueError("Either rag_collection_id or project_id must be provided")
