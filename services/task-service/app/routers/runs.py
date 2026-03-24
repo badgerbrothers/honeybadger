@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 import uuid
 from datetime import datetime, UTC
+import structlog
 from app.database import async_session_maker, get_db
 from app.models.artifact import Artifact
 from app.models.project import Project
@@ -17,8 +18,10 @@ from app.security.auth import (
     require_internal_service_token,
 )
 from app.services.event_broadcaster import broadcaster
+from app.services.task_retry_service import task_retry_service
 
 router = APIRouter(prefix="/api/runs", tags=["runs"])
+logger = structlog.get_logger(__name__)
 
 
 async def _get_owned_run_or_404(
@@ -89,6 +92,27 @@ async def ingest_run_event(
     logs.append(event)
     run.logs = logs
     await db.commit()
+
+    if event.get("type") == "run_failed":
+        task_result = await db.execute(select(Task).where(Task.id == run.task_id))
+        task = task_result.scalar_one_or_none()
+        if task is not None:
+            try:
+                await task_retry_service.maybe_schedule_retry(
+                    db=db,
+                    run=run,
+                    task=task,
+                    event=event,
+                )
+            except Exception as exc:
+                logger.error(
+                    "task_retry_evaluation_failed",
+                    run_id=str(run_id),
+                    task_id=str(run.task_id),
+                    error=str(exc),
+                    exc_info=True,
+                )
+
     await broadcaster.broadcast(str(run_id), event)
     return {"accepted": True}
 

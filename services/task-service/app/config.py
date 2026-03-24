@@ -72,6 +72,7 @@ class Settings(BaseSettings):
     jwt_issuer: str = "badgers-auth"
     jwt_audience: str = "badgers-services"
     internal_service_token: str = "dev-internal-token"
+    task_run_auto_retry_limit: int = 1
     auth_service_url: str = "http://localhost:8080"
     supported_models_raw: str = Field(
         default=(

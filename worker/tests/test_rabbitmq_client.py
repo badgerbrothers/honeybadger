@@ -66,3 +66,18 @@ async def test_handle_message_nack_on_transient_error():
     message.nack.assert_awaited_once_with(requeue=True)
     message.ack.assert_not_called()
     message.reject.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_handle_message_ack_on_transient_error_when_requeue_disabled():
+    """TaskRun worker should ack failures instead of requeueing the same run."""
+    client = RabbitMQClient("task-runs", requeue_on_error=False)
+    callback = AsyncMock(side_effect=RuntimeError("temporary downstream error"))
+    message = AsyncMock()
+    message.body = b'{"task_run_id":"00000000-0000-0000-0000-000000000003"}'
+
+    await client._handle_message(message, callback)
+
+    message.ack.assert_awaited_once()
+    message.nack.assert_not_called()
+    message.reject.assert_not_called()

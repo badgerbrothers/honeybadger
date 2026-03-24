@@ -23,8 +23,9 @@ logger = structlog.get_logger(__name__)
 class RabbitMQClient:
     """Async RabbitMQ consumer with robust connection and explicit ack semantics."""
 
-    def __init__(self, queue_name: str):
+    def __init__(self, queue_name: str, *, requeue_on_error: bool = True):
         self.queue_name = queue_name
+        self.requeue_on_error = requeue_on_error
         self.connection: AbstractRobustConnection | None = None
         self.channel: AbstractRobustChannel | None = None
         self.queue: AbstractQueue | None = None
@@ -87,8 +88,12 @@ class RabbitMQClient:
                 queue=self.queue_name,
                 error=str(exc),
                 exc_info=True,
+                requeue=self.requeue_on_error,
             )
-            await message.nack(requeue=True)
+            if self.requeue_on_error:
+                await message.nack(requeue=True)
+            else:
+                await message.ack()
             return
 
         await message.ack()

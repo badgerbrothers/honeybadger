@@ -8,7 +8,13 @@ import uuid
 import structlog
 
 from config import settings
-from main import async_session_maker, configure_logging, engine, execute_task_run
+from main import (
+    async_session_maker,
+    claim_task_run_by_id,
+    configure_logging,
+    engine,
+    execute_task_run,
+)
 from queueing.rabbitmq_client import RabbitMQClient
 
 logger = structlog.get_logger(__name__)
@@ -30,6 +36,10 @@ async def handle_task_run(payload: dict):
     task_run_id = uuid.UUID(task_run_value)
     logger.info("task_run_received", task_run_id=str(task_run_id))
     async with async_session_maker() as session:
+        claimed_run = await claim_task_run_by_id(session, task_run_id)
+        if claimed_run is None:
+            logger.info("task_run_skipped", task_run_id=str(task_run_id))
+            return
         await execute_task_run(task_run_id, session)
 
 
@@ -43,7 +53,7 @@ async def main():
     signal.signal(signal.SIGINT, signal_handler)
 
     logger.info("taskrun_worker_starting")
-    client = RabbitMQClient("task-runs")
+    client = RabbitMQClient("task-runs", requeue_on_error=False)
     await client.connect()
     consume_task: asyncio.Task | None = None
 

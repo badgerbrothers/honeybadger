@@ -104,6 +104,54 @@ def append_run_log(task_run, event_type: str, **payload) -> None:
     task_run.logs = logs
 
 
+def classify_run_failure(exc: Exception) -> tuple[str, bool]:
+    """Classify a run failure into a coarse category and retry hint."""
+    try:
+        from models.exceptions import ConfigurationError, InvalidRequestError, RateLimitError
+        from orchestrator.exceptions import ModelError as OrchestratorModelError, ToolExecutionError
+        from sandbox.exceptions import SandboxCreationError, SandboxError
+        from tools.exceptions import ToolError
+    except ModuleNotFoundError:  # pragma: no cover - package-import fallback
+        from worker.models.exceptions import ConfigurationError, InvalidRequestError, RateLimitError
+        from worker.orchestrator.exceptions import (
+            ModelError as OrchestratorModelError,
+            ToolExecutionError,
+        )
+        from worker.sandbox.exceptions import SandboxCreationError, SandboxError
+        from worker.tools.exceptions import ToolError
+
+    if isinstance(exc, RateLimitError):
+        return "model_api", True
+    if isinstance(exc, (ConfigurationError, InvalidRequestError, ValueError)):
+        return "validation", False
+    if isinstance(exc, OrchestratorModelError):
+        return "model_api", True
+    if isinstance(exc, ToolExecutionError):
+        return "tool", False
+    if isinstance(exc, ToolError):
+        return "tool", False
+    if isinstance(exc, SandboxCreationError):
+        return "sandbox", True
+    if isinstance(exc, SandboxError):
+        return "sandbox", False
+    if isinstance(exc, TimeoutError):
+        return "internal", True
+    return "internal", False
+
+
+def build_run_failure_event(exc: Exception, *, failed_step: str) -> dict:
+    """Build a structured run_failed event payload."""
+    error_category, retryable_hint = classify_run_failure(exc)
+    error_message = str(exc)
+    return {
+        "error": error_message,
+        "error_message": error_message,
+        "error_category": error_category,
+        "retryable_hint": retryable_hint,
+        "failed_step": failed_step,
+    }
+
+
 def build_system_prompt(skill_prompt: str | None, rag_context: str | None = None) -> str | None:
     """Merge skill prompt and optional retrieved context into a single system prompt."""
     parts = [part for part in [skill_prompt, rag_context] if part]
@@ -132,6 +180,32 @@ async def get_next_pending_task(session: AsyncSession):
         await session.commit()
         logger.info("task_claimed", task_run_id=str(task_run.id))
 
+    return task_run
+
+
+async def claim_task_run_by_id(session: AsyncSession, task_run_id: uuid.UUID) -> TaskRun | None:
+    """Claim a specific TaskRun when it is still pending."""
+    result = await session.execute(
+        select(TaskRun).where(TaskRun.id == task_run_id)
+    )
+    task_run = result.scalar_one_or_none()
+    if task_run is None:
+        raise ValueError(f"TaskRun not found: {task_run_id}")
+
+    if task_run.status != TaskStatus.PENDING:
+        logger.info(
+            "task_run_not_claimed",
+            task_run_id=str(task_run_id),
+            status=task_run.status.value,
+        )
+        return None
+
+    task_run.status = TaskStatus.RUNNING
+    if task_run.started_at is None:
+        task_run.started_at = utcnow()
+    append_run_log(task_run, "run_started", status=TaskStatus.RUNNING.value)
+    await session.commit()
+    logger.info("task_claimed", task_run_id=str(task_run.id))
     return task_run
 
 
@@ -336,6 +410,7 @@ async def execute_task_run(task_run_id: uuid.UUID, session: AsyncSession):
     sandbox = None
     sandbox_session = None
     pending_event_tasks: list[asyncio.Task] = []
+    failed_step = "load_task_run"
     backend_client = (
         BackendClient(
             settings.backend_base_url,
@@ -364,23 +439,46 @@ async def execute_task_run(task_run_id: uuid.UUID, session: AsyncSession):
         )
         task_run = result.scalar_one()
 
+        failed_step = "load_task"
         result = await session.execute(
             select(Task).where(Task.id == task_run.task_id)
         )
         task = result.scalar_one()
 
+        if task_run.status != TaskStatus.RUNNING:
+            task_logger.info(
+                "task_execution_skipped",
+                reason="task_run_not_running",
+                status=task_run.status.value,
+            )
+            return
+
         if task.current_run_id != task_run.id:
             task.current_run_id = task_run.id
             await session.commit()
 
-        if task_run.status == TaskStatus.CANCELLED:
-            schedule_event("run_cancelled")
-            await finalize_run_state(session, task, task_run, TaskStatus.CANCELLED)
-            return
-
         schedule_event("run_started", status=task_run.status.value)
 
+        failed_step = "sandbox_lookup"
+        sandbox_result = await session.execute(
+            select(SandboxSession).where(SandboxSession.task_run_id == task_run_id)
+        )
+        existing_sandbox_session = sandbox_result.scalar_one_or_none()
+        if existing_sandbox_session is not None:
+            task_logger.warning(
+                "task_execution_skipped",
+                reason="sandbox_session_already_exists",
+                container_id=existing_sandbox_session.container_id,
+                terminated_at=(
+                    existing_sandbox_session.terminated_at.isoformat()
+                    if existing_sandbox_session.terminated_at
+                    else None
+                ),
+            )
+            return
+
         # Create sandbox
+        failed_step = "sandbox_create"
         sandbox = SandboxManager(
             task_run_id=task_run_id,
             image=settings.sandbox_image,
@@ -405,6 +503,7 @@ async def execute_task_run(task_run_id: uuid.UUID, session: AsyncSession):
         await session.commit()
 
         # Initialize model
+        failed_step = "model_initialize"
         model_provider = create_model_provider(
             provider=settings.model_provider,
             model=task.model or settings.default_main_model,
@@ -425,6 +524,7 @@ async def execute_task_run(task_run_id: uuid.UUID, session: AsyncSession):
         # Initialize tools
         tools = get_all_tools(sandbox)
 
+        failed_step = "context_retrieve"
         rag_context = await retrieve_project_context(task, task_run, session)
 
         def on_agent_event(event: dict) -> None:
@@ -447,6 +547,7 @@ async def execute_task_run(task_run_id: uuid.UUID, session: AsyncSession):
                 )
 
         # Create and run agent
+        failed_step = "agent_run"
         agent = Agent(
             task_run_id=task_run_id,
             model=model_provider,
@@ -463,10 +564,9 @@ async def execute_task_run(task_run_id: uuid.UUID, session: AsyncSession):
 
         await session.refresh(task_run)
         if task_run.status == TaskStatus.CANCELLED:
-            schedule_event("run_cancelled")
             await finalize_run_state(session, task, task_run, TaskStatus.CANCELLED)
+            schedule_event("run_cancelled")
         else:
-            schedule_event("run_completed", result=result)
             await finalize_run_state(
                 session,
                 task,
@@ -474,10 +574,12 @@ async def execute_task_run(task_run_id: uuid.UUID, session: AsyncSession):
                 TaskStatus.COMPLETED,
                 result=result,
             )
+            schedule_event("run_completed", result=result)
 
         task_logger.info("task_execution_completed", result_length=len(result))
 
         # Cleanup sandbox
+        failed_step = "sandbox_destroy"
         await sandbox.destroy()
         sandbox_session.terminated_at = utcnow()
         await session.commit()
@@ -486,15 +588,16 @@ async def execute_task_run(task_run_id: uuid.UUID, session: AsyncSession):
 
     except Exception as e:
         task_logger.error("task_execution_failed", error=str(e), exc_info=True)
+        await session.rollback()
 
         # Update TaskRun with failure if it was loaded
         if 'task_run' in locals():
             await session.refresh(task_run)
             if task_run.status == TaskStatus.CANCELLED and 'task' in locals():
-                schedule_event("run_cancelled")
                 await finalize_run_state(session, task, task_run, TaskStatus.CANCELLED)
+                schedule_event("run_cancelled")
             elif 'task' in locals():
-                schedule_event("run_failed", error=str(e))
+                schedule_event("run_failed", **build_run_failure_event(e, failed_step=failed_step))
                 await finalize_run_state(
                     session,
                     task,

@@ -42,6 +42,52 @@ async def test_get_next_pending_task_claims_task():
 
 
 @pytest.mark.asyncio
+async def test_claim_task_run_by_id_claims_pending_run():
+    """Specific pending TaskRun should transition to RUNNING exactly once."""
+    from worker.main import claim_task_run_by_id
+    from db_models import TaskRun, TaskStatus
+
+    task_run_id = uuid.uuid4()
+    mock_task_run = Mock(spec=TaskRun)
+    mock_task_run.id = task_run_id
+    mock_task_run.status = TaskStatus.PENDING
+    mock_task_run.started_at = None
+    mock_task_run.logs = None
+
+    mock_session = AsyncMock()
+    mock_session.execute = AsyncMock(return_value=Mock(scalar_one_or_none=Mock(return_value=mock_task_run)))
+    mock_session.commit = AsyncMock()
+
+    result = await claim_task_run_by_id(mock_session, task_run_id)
+
+    assert result == mock_task_run
+    assert mock_task_run.status == TaskStatus.RUNNING
+    assert mock_task_run.started_at is not None
+    mock_session.commit.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_claim_task_run_by_id_skips_non_pending_run():
+    """Repeated delivery should not reclaim a non-pending TaskRun."""
+    from worker.main import claim_task_run_by_id
+    from db_models import TaskRun, TaskStatus
+
+    task_run_id = uuid.uuid4()
+    mock_task_run = Mock(spec=TaskRun)
+    mock_task_run.id = task_run_id
+    mock_task_run.status = TaskStatus.COMPLETED
+
+    mock_session = AsyncMock()
+    mock_session.execute = AsyncMock(return_value=Mock(scalar_one_or_none=Mock(return_value=mock_task_run)))
+    mock_session.commit = AsyncMock()
+
+    result = await claim_task_run_by_id(mock_session, task_run_id)
+
+    assert result is None
+    mock_session.commit.assert_not_called()
+
+
+@pytest.mark.asyncio
 async def test_execute_task_run_success():
     """Test successful task execution."""
     from worker.main import execute_task_run
@@ -67,7 +113,8 @@ async def test_execute_task_run_success():
     # Mock database queries
     mock_session.execute = AsyncMock(side_effect=[
         Mock(scalar_one=Mock(return_value=mock_task_run)),
-        Mock(scalar_one=Mock(return_value=mock_task))
+        Mock(scalar_one=Mock(return_value=mock_task)),
+        Mock(scalar_one_or_none=Mock(return_value=None)),
     ])
     mock_session.add = Mock()
     mock_session.commit = AsyncMock()
@@ -139,7 +186,8 @@ async def test_execute_task_run_failure_updates_status():
     # Mock database queries to return task_run and task, then fail on sandbox creation
     mock_session.execute = AsyncMock(side_effect=[
         Mock(scalar_one=Mock(return_value=mock_task_run)),
-        Mock(scalar_one=Mock(return_value=mock_task))
+        Mock(scalar_one=Mock(return_value=mock_task)),
+        Mock(scalar_one_or_none=Mock(return_value=None)),
     ])
     mock_session.add = Mock()
     mock_session.commit = AsyncMock()
@@ -163,6 +211,50 @@ async def test_execute_task_run_failure_updates_status():
 
         assert mock_task_run.status == TaskStatus.FAILED
         assert mock_task_run.error_message == "Sandbox creation failed"
+
+
+@pytest.mark.asyncio
+async def test_execute_task_run_skips_when_sandbox_session_exists():
+    """Duplicate execution should not create a second sandbox session."""
+    from worker.main import execute_task_run
+    from db_models import SandboxSession, Task, TaskRun, TaskStatus
+
+    task_run_id = uuid.uuid4()
+    task_id = uuid.uuid4()
+
+    mock_task = Mock(spec=Task)
+    mock_task.id = task_id
+    mock_task.goal = "test goal"
+    mock_task.model = None
+    mock_task.skill = None
+    mock_task.current_run_id = task_run_id
+
+    mock_task_run = Mock(spec=TaskRun)
+    mock_task_run.id = task_run_id
+    mock_task_run.task_id = task_id
+    mock_task_run.status = TaskStatus.RUNNING
+    mock_task_run.logs = None
+
+    mock_sandbox_session = Mock(spec=SandboxSession)
+    mock_sandbox_session.container_id = "container_existing"
+    mock_sandbox_session.terminated_at = None
+
+    mock_session = AsyncMock()
+    mock_session.execute = AsyncMock(side_effect=[
+        Mock(scalar_one=Mock(return_value=mock_task_run)),
+        Mock(scalar_one=Mock(return_value=mock_task)),
+        Mock(scalar_one_or_none=Mock(return_value=mock_sandbox_session)),
+    ])
+    mock_session.commit = AsyncMock()
+
+    fake_sandbox_module = types.ModuleType("sandbox.manager")
+    mock_sandbox_cls = Mock()
+    fake_sandbox_module.SandboxManager = mock_sandbox_cls
+
+    with patch.dict(sys.modules, {"sandbox.manager": fake_sandbox_module}):
+        await execute_task_run(task_run_id, mock_session)
+
+    mock_sandbox_cls.assert_not_called()
 
 
 @pytest.mark.asyncio
