@@ -30,6 +30,19 @@ MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
 ALLOWED_EXTENSIONS = {".txt", ".md", ".markdown", ".pdf", ".json", ".csv"}
 
 
+def _resolve_upload_size(file: UploadFile) -> int:
+    """Return the uploaded file size without reading the full payload into memory."""
+    if file.size is not None:
+        return file.size
+
+    stream = file.file
+    current_pos = stream.tell()
+    stream.seek(0, 2)
+    size = stream.tell()
+    stream.seek(current_pos)
+    return size
+
+
 async def _get_owned_rag_or_404(
     rag_id: uuid.UUID,
     user: CurrentUser,
@@ -151,8 +164,8 @@ async def upload_rag_file(
             detail=f"File type not allowed. Supported: {', '.join(sorted(ALLOWED_EXTENSIONS))}",
         )
 
-    content = await file.read()
-    if len(content) > MAX_FILE_SIZE:
+    file_size = _resolve_upload_size(file)
+    if file_size > MAX_FILE_SIZE:
         raise HTTPException(
             status_code=413,
             detail=f"File too large. Maximum size is {MAX_FILE_SIZE // (1024 * 1024)}MB",
@@ -166,16 +179,17 @@ async def upload_rag_file(
         rag_collection_id=rag_id,
         storage_path=object_name,
         file_name=file_name,
-        file_size=len(content),
+        file_size=file_size,
         mime_type=file.content_type,
         status=RagFileStatus.PENDING,
     )
     db.add(rag_file)
 
     try:
-        await storage_service.upload_file(
+        await storage_service.upload_stream(
             object_name=object_name,
-            data=content,
+            stream=file.file,
+            length=file_size,
             content_type=file.content_type or "application/octet-stream",
         )
         await db.commit()

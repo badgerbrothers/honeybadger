@@ -51,6 +51,8 @@ class Settings(BaseSettings):
         default=False,
         validation_alias=AliasChoices("S3_SECURE", "MINIO_SECURE"),
     )
+    s3_multipart_part_size: int = 10 * 1024 * 1024
+    s3_num_parallel_uploads: int = 3
 
     @property
     def rabbitmq_url(self) -> str:

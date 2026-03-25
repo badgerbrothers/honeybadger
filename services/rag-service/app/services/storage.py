@@ -1,10 +1,14 @@
 """MinIO storage service."""
+from __future__ import annotations
+
+import asyncio
+import io
+from typing import BinaryIO
 from urllib.parse import urlparse
 
 from minio import Minio
 from minio.commonconfig import CopySource
 from minio.error import S3Error
-import io
 import structlog
 from app.config import settings
 
@@ -49,21 +53,61 @@ class StorageService:
         except Exception as e:
             logger.warning("bucket_check_failed", error=str(e))
 
-    async def upload_file(self, object_name: str, data: bytes, content_type: str = "application/octet-stream") -> str:
-        """Upload file to MinIO."""
+    def _blocking_put_object(
+        self,
+        object_name: str,
+        stream: BinaryIO,
+        length: int,
+        content_type: str,
+    ) -> str:
+        """Upload a stream to MinIO using the blocking SDK."""
         self._ensure_bucket()
+        part_size = (
+            settings.s3_multipart_part_size
+            if length > settings.s3_multipart_part_size
+            else 0
+        )
         try:
+            if hasattr(stream, "seek"):
+                stream.seek(0)
             self.client.put_object(
                 settings.s3_bucket,
                 object_name,
-                io.BytesIO(data),
-                length=len(data),
-                content_type=content_type
+                stream,
+                length=length,
+                content_type=content_type,
+                part_size=part_size,
+                num_parallel_uploads=settings.s3_num_parallel_uploads,
             )
             return object_name
         except S3Error as e:
             logger.error("upload_failed", object_name=object_name, error=str(e))
             raise
+
+    async def upload_stream(
+        self,
+        object_name: str,
+        stream: BinaryIO,
+        length: int,
+        content_type: str = "application/octet-stream",
+    ) -> str:
+        """Upload a file-like stream to MinIO without buffering the full payload in memory."""
+        return await asyncio.to_thread(
+            self._blocking_put_object,
+            object_name,
+            stream,
+            length,
+            content_type,
+        )
+
+    async def upload_file(self, object_name: str, data: bytes, content_type: str = "application/octet-stream") -> str:
+        """Upload bytes to MinIO."""
+        return await self.upload_stream(
+            object_name=object_name,
+            stream=io.BytesIO(data),
+            length=len(data),
+            content_type=content_type,
+        )
 
     async def download_file(self, object_name: str) -> bytes:
         """Download file from MinIO."""

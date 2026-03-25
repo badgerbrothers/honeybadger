@@ -19,6 +19,19 @@ router = APIRouter(prefix="/api/projects", tags=["projects"])
 MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
 ALLOWED_EXTENSIONS = {'.txt', '.md', '.markdown', '.pdf', '.json', '.csv'}
 
+
+def _resolve_upload_size(file: UploadFile) -> int:
+    """Return the uploaded file size without reading the full payload into memory."""
+    if file.size is not None:
+        return file.size
+
+    stream = file.file
+    current_pos = stream.tell()
+    stream.seek(0, 2)
+    size = stream.tell()
+    stream.seek(current_pos)
+    return size
+
 @router.get("/", response_model=list[ProjectResponse])
 async def list_projects(db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Project))
@@ -81,8 +94,8 @@ async def upload_project_file(
             detail=f"File type not allowed. Supported: {', '.join(ALLOWED_EXTENSIONS)}"
         )
 
-    content = await file.read()
-    if len(content) > MAX_FILE_SIZE:
+    file_size = _resolve_upload_size(file)
+    if file_size > MAX_FILE_SIZE:
         raise HTTPException(
             status_code=413,
             detail=f"File too large. Maximum size is {MAX_FILE_SIZE // (1024*1024)}MB"
@@ -98,14 +111,15 @@ async def upload_project_file(
             name=file.filename,
             path=object_name,
             node_type=NodeType.FILE,
-            size=len(content)
+            size=file_size
         )
         db.add(node)
         await db.flush()
 
-        await storage_service.upload_file(
+        await storage_service.upload_stream(
             object_name,
-            content,
+            file.file,
+            file_size,
             file.content_type or "application/octet-stream"
         )
 
