@@ -13,7 +13,6 @@ try:
     from db_models import (
         DocumentIndexJob,
         DocumentIndexStatus,
-        SandboxSession,
         Task,
         TaskRun,
         TaskStatus,
@@ -22,7 +21,6 @@ except ModuleNotFoundError:  # pragma: no cover - package-import fallback
     from worker.db_models import (
         DocumentIndexJob,
         DocumentIndexStatus,
-        SandboxSession,
         Task,
         TaskRun,
         TaskStatus,
@@ -33,6 +31,7 @@ try:
     from models.factory import create_model_provider
     from services.backend_client import BackendClient
     from services.storage_client import storage_client
+    from sandbox.pool_service import pool_service
     from tools import get_all_tools
     from skills.registry import get_skill
 except ModuleNotFoundError:  # pragma: no cover - package-import fallback
@@ -41,6 +40,7 @@ except ModuleNotFoundError:  # pragma: no cover - package-import fallback
     from worker.models.factory import create_model_provider
     from worker.services.backend_client import BackendClient
     from worker.services.storage_client import storage_client
+    from worker.sandbox.pool_service import pool_service
     from worker.tools import get_all_tools
     from worker.skills.registry import get_skill
 
@@ -152,6 +152,34 @@ def build_run_failure_event(exc: Exception, *, failed_step: str) -> dict:
     }
 
 
+def classify_index_job_failure(exc: Exception, *, failed_step: str) -> tuple[str, str]:
+    """Classify an index-job failure into an error code and normalized step."""
+    try:
+        from models.exceptions import ModelError as WorkerModelError, RateLimitError
+        from rag.parsers.exceptions import FileReadError, ParseError, UnsupportedFormatError
+    except ModuleNotFoundError:  # pragma: no cover - package-import fallback
+        from worker.models.exceptions import ModelError as WorkerModelError, RateLimitError
+        from worker.rag.parsers.exceptions import FileReadError, ParseError, UnsupportedFormatError
+
+    if isinstance(exc, UnsupportedFormatError):
+        return "unsupported_format", "parse"
+    if isinstance(exc, FileReadError):
+        return "file_read_failed", "parse"
+    if isinstance(exc, ParseError):
+        return "document_parse_failed", "parse"
+    if isinstance(exc, RateLimitError):
+        return "embedding_rate_limited", "embedding"
+    if isinstance(exc, WorkerModelError):
+        return "embedding_request_failed", "embedding"
+    if failed_step == "validate_configuration":
+        return "openai_api_key_missing", failed_step
+    if failed_step == "download_file":
+        return "storage_download_failed", failed_step
+    if failed_step == "index_document":
+        return "document_index_failed", failed_step
+    return "document_index_failed", failed_step
+
+
 def build_system_prompt(skill_prompt: str | None, rag_context: str | None = None) -> str | None:
     """Merge skill prompt and optional retrieved context into a single system prompt."""
     parts = [part for part in [skill_prompt, rag_context] if part]
@@ -226,6 +254,34 @@ async def get_next_pending_index_job(session: AsyncSession):
     return job
 
 
+async def claim_document_index_job_by_id(
+    session: AsyncSession,
+    job_id: uuid.UUID,
+) -> DocumentIndexJob | None:
+    """Claim a specific document index job when it is still pending."""
+    result = await session.execute(
+        select(DocumentIndexJob).where(DocumentIndexJob.id == job_id)
+    )
+    job = result.scalar_one_or_none()
+    if job is None:
+        raise ValueError(f"DocumentIndexJob not found: {job_id}")
+
+    if job.status != DocumentIndexStatus.PENDING:
+        logger.info(
+            "document_index_job_not_claimed",
+            job_id=str(job_id),
+            status=job.status.value,
+        )
+        return None
+
+    job.status = DocumentIndexStatus.RUNNING
+    if job.started_at is None:
+        job.started_at = utcnow()
+    await session.commit()
+    logger.info("document_index_job_claimed", job_id=str(job.id))
+    return job
+
+
 async def finalize_run_state(
     session: AsyncSession,
     task,
@@ -250,6 +306,25 @@ async def finalize_run_state(
         append_run_log(task_run, "run_cancelled")
 
     await session.commit()
+
+
+async def reload_task_execution_state(
+    session: AsyncSession,
+    task_run_id: uuid.UUID,
+) -> tuple[TaskRun | None, Task | None]:
+    """Reload run/task ORM instances after rollback invalidates previous ones."""
+    run_result = await session.execute(
+        select(TaskRun).where(TaskRun.id == task_run_id)
+    )
+    task_run = run_result.scalar_one_or_none()
+    if task_run is None:
+        return None, None
+
+    task_result = await session.execute(
+        select(Task).where(Task.id == task_run.task_id)
+    )
+    task = task_result.scalar_one_or_none()
+    return task_run, task
 
 
 async def retrieve_project_context(task, task_run, session: AsyncSession) -> str | None:
@@ -357,13 +432,24 @@ async def execute_document_index_job(job_id: uuid.UUID, session: AsyncSession):
     job = result.scalar_one()
 
     local_path = None
+    failed_step = "load_job"
     try:
+        if job.status != DocumentIndexStatus.RUNNING:
+            job_logger.info(
+                "document_index_job_skipped",
+                reason="job_not_running",
+                status=job.status.value,
+            )
+            return
+
+        failed_step = "validate_configuration"
         if not settings.openai_api_key:
             raise RuntimeError("OPENAI_API_KEY not configured for RAG indexing")
 
         from rag.embeddings import EmbeddingService
         from rag.indexer import DocumentIndexer
 
+        failed_step = "download_file"
         file_bytes = await storage_client.download_file(job.storage_path)
         workspace = Path("worker_tmp") / "rag"
         workspace.mkdir(parents=True, exist_ok=True)
@@ -378,6 +464,7 @@ async def execute_document_index_job(job_id: uuid.UUID, session: AsyncSession):
             ),
             session,
         )
+        failed_step = "index_document"
         chunk_count = await indexer.index_document(
             project_id=job.project_id,
             rag_collection_id=getattr(job, "rag_collection_id", None),
@@ -386,15 +473,27 @@ async def execute_document_index_job(job_id: uuid.UUID, session: AsyncSession):
 
         job.status = DocumentIndexStatus.COMPLETED
         job.completed_at = utcnow()
+        job.error_code = None
+        job.error_message = None
+        job.failed_step = None
         job.chunk_count = chunk_count
         await session.commit()
         job_logger.info("document_index_job_completed", chunk_count=chunk_count)
     except Exception as exc:
+        error_code, normalized_step = classify_index_job_failure(exc, failed_step=failed_step)
         job.status = DocumentIndexStatus.FAILED
         job.completed_at = utcnow()
+        job.error_code = error_code
         job.error_message = str(exc)
+        job.failed_step = normalized_step
         await session.commit()
-        job_logger.error("document_index_job_failed", error=str(exc), exc_info=True)
+        job_logger.error(
+            "document_index_job_failed",
+            error=str(exc),
+            error_code=error_code,
+            failed_step=normalized_step,
+            exc_info=True,
+        )
     finally:
         if local_path and local_path.exists():
             local_path.unlink(missing_ok=True)
@@ -402,7 +501,10 @@ async def execute_document_index_job(job_id: uuid.UUID, session: AsyncSession):
 
 async def execute_task_run(task_run_id: uuid.UUID, session: AsyncSession):
     """Execute a single TaskRun with sandbox and agent."""
-    from sandbox.manager import SandboxManager
+    try:
+        from sandbox.manager import SandboxManager
+    except ModuleNotFoundError:  # pragma: no cover - package-import fallback
+        from worker.sandbox.manager import SandboxManager
 
     task_logger = structlog.get_logger().bind(task_run_id=str(task_run_id))
     task_logger.info("task_execution_started")
@@ -460,47 +562,32 @@ async def execute_task_run(task_run_id: uuid.UUID, session: AsyncSession):
         schedule_event("run_started", status=task_run.status.value)
 
         failed_step = "sandbox_lookup"
-        sandbox_result = await session.execute(
-            select(SandboxSession).where(SandboxSession.task_run_id == task_run_id)
+        existing_sandbox_session = await pool_service.get_leased_sandbox_for_task_run(
+            session,
+            task_run_id,
         )
-        existing_sandbox_session = sandbox_result.scalar_one_or_none()
         if existing_sandbox_session is not None:
             task_logger.warning(
                 "task_execution_skipped",
-                reason="sandbox_session_already_exists",
+                reason="sandbox_already_leased_for_task_run",
                 container_id=existing_sandbox_session.container_id,
-                terminated_at=(
-                    existing_sandbox_session.terminated_at.isoformat()
-                    if existing_sandbox_session.terminated_at
-                    else None
-                ),
             )
             return
 
-        # Create sandbox
-        failed_step = "sandbox_create"
-        sandbox = SandboxManager(
-            task_run_id=task_run_id,
-            image=settings.sandbox_image,
-            mem_limit=settings.sandbox_memory_limit,
-            cpu_quota=settings.sandbox_cpu_quota
-        )
+        failed_step = "sandbox_ensure_capacity"
+        await pool_service.ensure_min_capacity(session)
 
-        container_id = await sandbox.create()
-        task_logger.info("sandbox_created", container_id=container_id)
-        append_run_log(task_run, "sandbox_created", container_id=container_id)
-        schedule_event("step", message="sandbox_created", container_id=container_id)
+        failed_step = "sandbox_lease"
+        sandbox_session = await pool_service.lease_sandbox(session, task_run_id)
+        sandbox = SandboxManager.from_session(sandbox_session)
 
-        # Persist SandboxSession
-        sandbox_session = SandboxSession(
-            task_run_id=task_run_id,
-            container_id=container_id,
-            image=settings.sandbox_image,
-            cpu_limit=settings.sandbox_cpu_quota,
-            memory_limit=int(settings.sandbox_memory_limit.removesuffix('m').removesuffix('g'))
+        task_logger.info("sandbox_leased", container_id=sandbox_session.container_id)
+        append_run_log(task_run, "sandbox_leased", container_id=sandbox_session.container_id)
+        schedule_event(
+            "step",
+            message="sandbox_leased",
+            container_id=sandbox_session.container_id,
         )
-        session.add(sandbox_session)
-        await session.commit()
 
         # Initialize model
         failed_step = "model_initialize"
@@ -578,43 +665,63 @@ async def execute_task_run(task_run_id: uuid.UUID, session: AsyncSession):
 
         task_logger.info("task_execution_completed", result_length=len(result))
 
-        # Cleanup sandbox
-        failed_step = "sandbox_destroy"
-        await sandbox.destroy()
-        sandbox_session.terminated_at = utcnow()
-        await session.commit()
-        if pending_event_tasks:
-            await asyncio.gather(*pending_event_tasks, return_exceptions=True)
-
     except Exception as e:
         task_logger.error("task_execution_failed", error=str(e), exc_info=True)
         await session.rollback()
 
-        # Update TaskRun with failure if it was loaded
-        if 'task_run' in locals():
-            await session.refresh(task_run)
-            if task_run.status == TaskStatus.CANCELLED and 'task' in locals():
-                await finalize_run_state(session, task, task_run, TaskStatus.CANCELLED)
+        try:
+            reloaded_task_run, reloaded_task = await reload_task_execution_state(session, task_run_id)
+            if reloaded_task_run is None:
+                task_logger.error("task_failure_state_update_skipped", reason="task_run_not_found_after_rollback")
+            elif reloaded_task_run.status == TaskStatus.CANCELLED and reloaded_task is not None:
+                await finalize_run_state(session, reloaded_task, reloaded_task_run, TaskStatus.CANCELLED)
                 schedule_event("run_cancelled")
-            elif 'task' in locals():
-                schedule_event("run_failed", **build_run_failure_event(e, failed_step=failed_step))
+            elif reloaded_task is not None:
                 await finalize_run_state(
                     session,
-                    task,
-                    task_run,
+                    reloaded_task,
+                    reloaded_task_run,
                     TaskStatus.FAILED,
                     error_message=str(e),
                 )
-
-        # Cleanup sandbox if created
-        try:
-            if sandbox:
-                await sandbox.destroy()
-            if sandbox_session:
-                sandbox_session.terminated_at = utcnow()
-                await session.commit()
-        except Exception as cleanup_error:
-            task_logger.error("sandbox_cleanup_failed", error=str(cleanup_error))
+                schedule_event("run_failed", **build_run_failure_event(e, failed_step=failed_step))
+            else:
+                task_logger.error(
+                    "task_failure_state_update_skipped",
+                    reason="task_not_found_after_rollback",
+                    task_run_id=str(task_run_id),
+                )
+        except Exception as state_error:
+                task_logger.error("task_failure_state_update_failed", error=str(state_error), exc_info=True)
+    finally:
+        if sandbox and sandbox_session:
+            failed_step = "sandbox_return"
+            try:
+                await pool_service.mark_resetting(session, sandbox_session)
+                await pool_service.reset_sandbox(sandbox)
+                await pool_service.health_check_sandbox(sandbox)
+                await pool_service.return_sandbox(session, sandbox_session, healthy=True)
+            except Exception as cleanup_error:
+                task_logger.error("sandbox_return_failed", error=str(cleanup_error), exc_info=True)
+                try:
+                    await pool_service.recycle_sandbox(
+                        session,
+                        sandbox_session,
+                        reason="return_failed",
+                    )
+                except Exception as recycle_error:
+                    task_logger.error(
+                        "sandbox_recycle_failed",
+                        error=str(recycle_error),
+                        exc_info=True,
+                    )
+            else:
+                append_run_log(task_run, "sandbox_returned", container_id=sandbox_session.container_id)
+                schedule_event(
+                    "step",
+                    message="sandbox_returned",
+                    container_id=sandbox_session.container_id,
+                )
         if pending_event_tasks:
             await asyncio.gather(*pending_event_tasks, return_exceptions=True)
 

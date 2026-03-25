@@ -183,8 +183,191 @@ async def init_db():
                 await conn.execute(
                     text(
                         """
+                        ALTER TABLE IF EXISTS document_index_jobs
+                        ADD COLUMN IF NOT EXISTS error_code VARCHAR(100)
+                        """
+                    )
+                )
+                await conn.execute(
+                    text(
+                        """
+                        ALTER TABLE IF EXISTS document_index_jobs
+                        ADD COLUMN IF NOT EXISTS failed_step VARCHAR(100)
+                        """
+                    )
+                )
+                await conn.execute(
+                    text(
+                        """
                         ALTER TABLE IF EXISTS rag_collections
                         ADD COLUMN IF NOT EXISTS owner_user_id UUID
+                        """
+                    )
+                )
+                await conn.execute(
+                    text(
+                        """
+                        ALTER TABLE IF EXISTS sandbox_sessions
+                        ALTER COLUMN task_run_id DROP NOT NULL
+                        """
+                    )
+                )
+                await conn.execute(
+                    text(
+                        """
+                        ALTER TABLE IF EXISTS sandbox_sessions
+                        ADD COLUMN IF NOT EXISTS status VARCHAR(50)
+                        """
+                    )
+                )
+                await conn.execute(
+                    text(
+                        """
+                        ALTER TABLE IF EXISTS sandbox_sessions
+                        ADD COLUMN IF NOT EXISTS workspace_dir VARCHAR(512)
+                        """
+                    )
+                )
+                await conn.execute(
+                    text(
+                        """
+                        ALTER TABLE IF EXISTS sandbox_sessions
+                        ADD COLUMN IF NOT EXISTS reuse_count INTEGER
+                        """
+                    )
+                )
+                await conn.execute(
+                    text(
+                        """
+                        ALTER TABLE IF EXISTS sandbox_sessions
+                        ADD COLUMN IF NOT EXISTS leased_at TIMESTAMP WITHOUT TIME ZONE
+                        """
+                    )
+                )
+                await conn.execute(
+                    text(
+                        """
+                        ALTER TABLE IF EXISTS sandbox_sessions
+                        ADD COLUMN IF NOT EXISTS last_used_at TIMESTAMP WITHOUT TIME ZONE
+                        """
+                    )
+                )
+                await conn.execute(
+                    text(
+                        """
+                        ALTER TABLE IF EXISTS sandbox_sessions
+                        ADD COLUMN IF NOT EXISTS last_health_check_at TIMESTAMP WITHOUT TIME ZONE
+                        """
+                    )
+                )
+                await conn.execute(
+                    text(
+                        """
+                        ALTER TABLE IF EXISTS sandbox_sessions
+                        ADD COLUMN IF NOT EXISTS lease_error VARCHAR(255)
+                        """
+                    )
+                )
+                await conn.execute(
+                    text(
+                        """
+                        ALTER TABLE IF EXISTS sandbox_sessions
+                        ADD COLUMN IF NOT EXISTS drain_reason VARCHAR(255)
+                        """
+                    )
+                )
+                await conn.execute(
+                    text(
+                        """
+                        UPDATE sandbox_sessions
+                        SET status = CASE
+                            WHEN terminated_at IS NOT NULL THEN 'broken'
+                            WHEN task_run_id IS NOT NULL THEN 'leased'
+                            ELSE 'available'
+                        END
+                        WHERE status IS NULL
+                        """
+                    )
+                )
+                await conn.execute(
+                    text(
+                        """
+                        UPDATE sandbox_sessions
+                        SET workspace_dir = '/tmp/legacy-sandbox-' || SUBSTRING(container_id, 1, 12)
+                        WHERE workspace_dir IS NULL
+                        """
+                    )
+                )
+                await conn.execute(
+                    text(
+                        """
+                        UPDATE sandbox_sessions
+                        SET reuse_count = 0
+                        WHERE reuse_count IS NULL
+                        """
+                    )
+                )
+                await conn.execute(
+                    text(
+                        """
+                        ALTER TABLE IF EXISTS sandbox_sessions
+                        ALTER COLUMN status SET DEFAULT 'available'
+                        """
+                    )
+                )
+                await conn.execute(
+                    text(
+                        """
+                        ALTER TABLE IF EXISTS sandbox_sessions
+                        ALTER COLUMN status SET NOT NULL
+                        """
+                    )
+                )
+                await conn.execute(
+                    text(
+                        """
+                        ALTER TABLE IF EXISTS sandbox_sessions
+                        ALTER COLUMN workspace_dir SET NOT NULL
+                        """
+                    )
+                )
+                await conn.execute(
+                    text(
+                        """
+                        ALTER TABLE IF EXISTS sandbox_sessions
+                        ALTER COLUMN reuse_count SET DEFAULT 0
+                        """
+                    )
+                )
+                await conn.execute(
+                    text(
+                        """
+                        ALTER TABLE IF EXISTS sandbox_sessions
+                        ALTER COLUMN reuse_count SET NOT NULL
+                        """
+                    )
+                )
+                await conn.execute(
+                    text(
+                        """
+                        CREATE INDEX IF NOT EXISTS ix_sandbox_sessions_status
+                        ON sandbox_sessions (status)
+                        """
+                    )
+                )
+                await conn.execute(
+                    text(
+                        """
+                        CREATE INDEX IF NOT EXISTS ix_sandbox_sessions_last_used_at
+                        ON sandbox_sessions (last_used_at)
+                        """
+                    )
+                )
+                await conn.execute(
+                    text(
+                        """
+                        CREATE UNIQUE INDEX IF NOT EXISTS ux_sandbox_sessions_container_id
+                        ON sandbox_sessions (container_id)
                         """
                     )
                 )

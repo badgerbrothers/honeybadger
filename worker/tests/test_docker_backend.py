@@ -77,6 +77,20 @@ def test_remove_container(mock_from_env):
 
 
 @patch('sandbox.docker_backend.docker.from_env')
+def test_restart_container(mock_from_env):
+    """Test container restart."""
+    mock_client = Mock()
+    mock_container = Mock()
+    mock_client.containers.get.return_value = mock_container
+    mock_from_env.return_value = mock_client
+
+    backend = DockerBackend()
+    backend.restart_container("test123")
+
+    mock_container.restart.assert_called_once_with(timeout=10)
+
+
+@patch('sandbox.docker_backend.docker.from_env')
 def test_execute_command(mock_from_env):
     """Test command execution."""
     mock_client = Mock()

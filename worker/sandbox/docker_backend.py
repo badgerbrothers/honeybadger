@@ -61,6 +61,14 @@ class DockerBackend:
         except DockerException as e:
             raise SandboxCleanupError(f"Failed to stop container: {e}")
 
+    def restart_container(self, container_id: str, timeout: int = 10):
+        """Restart a running container."""
+        try:
+            container = self.client.containers.get(container_id)
+            container.restart(timeout=timeout)
+        except DockerException as e:
+            raise SandboxCleanupError(f"Failed to restart container: {e}")
+
     def remove_container(self, container_id: str, force: bool = False):
         """Remove container."""
         try:

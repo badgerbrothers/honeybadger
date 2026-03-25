@@ -60,6 +60,12 @@ class Settings(BaseSettings):
     sandbox_image: str = "badgers-sandbox:latest"
     sandbox_memory_limit: str = "512m"
     sandbox_cpu_quota: int = 50000
+    sandbox_pool_enabled: bool = True
+    sandbox_pool_min_size: int = 2
+    sandbox_pool_max_size: int = 4
+    sandbox_max_reuse_count: int = 10
+    sandbox_lease_timeout_seconds: int = 900
+    sandbox_healthcheck_command: str = "python3 --version"
 
     @property
     def rabbitmq_url(self) -> str:

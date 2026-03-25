@@ -10,6 +10,7 @@ try:
         DocumentIndexJob,
         DocumentIndexStatus,
         SandboxSession,
+        SandboxStatus,
         Task,
         TaskRun,
         TaskStatus,
@@ -24,6 +25,7 @@ except ModuleNotFoundError:
         DocumentIndexJob,
         DocumentIndexStatus,
         SandboxSession,
+        SandboxStatus,
         Task,
         TaskRun,
         TaskStatus,
@@ -34,8 +36,8 @@ __all__ = [
     "DocumentIndexJob",
     "DocumentIndexStatus",
     "SandboxSession",
+    "SandboxStatus",
     "Task",
     "TaskRun",
     "TaskStatus",
 ]
-

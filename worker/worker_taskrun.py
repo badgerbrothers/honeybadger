@@ -15,6 +15,7 @@ from main import (
     engine,
     execute_task_run,
 )
+from sandbox.pool_service import pool_service
 from queueing.rabbitmq_client import RabbitMQClient
 
 logger = structlog.get_logger(__name__)
@@ -58,6 +59,12 @@ async def main():
     consume_task: asyncio.Task | None = None
 
     try:
+        if settings.sandbox_pool_enabled:
+            try:
+                async with async_session_maker() as session:
+                    await pool_service.ensure_min_capacity(session)
+            except Exception as exc:
+                logger.warning("sandbox_pool_prewarm_failed", error=str(exc))
         consume_task = asyncio.create_task(client.consume(handle_task_run, stop_event=shutdown_event))
         await shutdown_event.wait()
     except asyncio.CancelledError:

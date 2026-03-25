@@ -108,15 +108,17 @@ async def test_execute_task_run_success():
     mock_task_run.status = TaskStatus.RUNNING
     mock_task_run.logs = None
 
+    mock_sandbox_session = Mock()
+    mock_sandbox_session.container_id = "container_123"
+    mock_sandbox_session.reuse_count = 1
+
     mock_session = AsyncMock()
 
     # Mock database queries
     mock_session.execute = AsyncMock(side_effect=[
         Mock(scalar_one=Mock(return_value=mock_task_run)),
         Mock(scalar_one=Mock(return_value=mock_task)),
-        Mock(scalar_one_or_none=Mock(return_value=None)),
     ])
-    mock_session.add = Mock()
     mock_session.commit = AsyncMock()
     mock_session.refresh = AsyncMock()
 
@@ -124,14 +126,19 @@ async def test_execute_task_run_success():
     fake_sandbox_module = types.ModuleType("sandbox.manager")
     mock_sandbox_cls = Mock()
     mock_sandbox = AsyncMock()
-    mock_sandbox.create = AsyncMock(return_value="container_123")
-    mock_sandbox.destroy = AsyncMock()
-    mock_sandbox_cls.return_value = mock_sandbox
+    mock_sandbox_cls.from_session = Mock(return_value=mock_sandbox)
     fake_sandbox_module.SandboxManager = mock_sandbox_cls
 
     with patch.dict(sys.modules, {"sandbox.manager": fake_sandbox_module}), \
          patch('worker.main.BackendClient') as mock_backend_client_cls, \
-         patch('worker.main.retrieve_project_context', new=AsyncMock(return_value=None)):
+         patch('worker.main.retrieve_project_context', new=AsyncMock(return_value=None)), \
+         patch('worker.main.pool_service.get_leased_sandbox_for_task_run', new=AsyncMock(return_value=None)), \
+         patch('worker.main.pool_service.ensure_min_capacity', new=AsyncMock()), \
+         patch('worker.main.pool_service.lease_sandbox', new=AsyncMock(return_value=mock_sandbox_session)), \
+         patch('worker.main.pool_service.mark_resetting', new=AsyncMock()) as mock_mark_resetting, \
+         patch('worker.main.pool_service.reset_sandbox', new=AsyncMock()) as mock_reset_sandbox, \
+         patch('worker.main.pool_service.health_check_sandbox', new=AsyncMock()) as mock_health_check, \
+         patch('worker.main.pool_service.return_sandbox', new=AsyncMock()) as mock_return_sandbox:
         mock_backend_client = AsyncMock()
         mock_backend_client.emit_run_event = AsyncMock()
         mock_backend_client_cls.return_value = mock_backend_client
@@ -154,7 +161,10 @@ async def test_execute_task_run_success():
                     await execute_task_run(task_run_id, mock_session)
 
                     assert mock_task_run.status == TaskStatus.COMPLETED
-                    assert mock_sandbox.destroy.called
+                    mock_mark_resetting.assert_awaited_once()
+                    mock_reset_sandbox.assert_awaited_once_with(mock_sandbox)
+                    mock_health_check.assert_awaited_once_with(mock_sandbox)
+                    mock_return_sandbox.assert_awaited_once()
                     _, kwargs = mock_model.call_args
                     assert kwargs["model"] == "gpt-5.3-codex"
 
@@ -183,26 +193,21 @@ async def test_execute_task_run_failure_updates_status():
 
     mock_session = AsyncMock()
 
-    # Mock database queries to return task_run and task, then fail on sandbox creation
+    # Mock database queries to return task_run and task, then reload state after rollback
     mock_session.execute = AsyncMock(side_effect=[
         Mock(scalar_one=Mock(return_value=mock_task_run)),
         Mock(scalar_one=Mock(return_value=mock_task)),
-        Mock(scalar_one_or_none=Mock(return_value=None)),
+        Mock(scalar_one_or_none=Mock(return_value=mock_task_run)),
+        Mock(scalar_one_or_none=Mock(return_value=mock_task)),
     ])
-    mock_session.add = Mock()
     mock_session.commit = AsyncMock()
     mock_session.refresh = AsyncMock()
+    mock_session.rollback = AsyncMock()
 
-    # Mock sandbox to fail
-    fake_sandbox_module = types.ModuleType("sandbox.manager")
-    mock_sandbox_cls = Mock()
-    mock_sandbox = AsyncMock()
-    mock_sandbox.create = AsyncMock(side_effect=Exception("Sandbox creation failed"))
-    mock_sandbox_cls.return_value = mock_sandbox
-    fake_sandbox_module.SandboxManager = mock_sandbox_cls
-
-    with patch.dict(sys.modules, {"sandbox.manager": fake_sandbox_module}), \
-         patch('worker.main.BackendClient') as mock_backend_client_cls:
+    with patch('worker.main.BackendClient') as mock_backend_client_cls, \
+         patch('worker.main.pool_service.get_leased_sandbox_for_task_run', new=AsyncMock(return_value=None)), \
+         patch('worker.main.pool_service.ensure_min_capacity', new=AsyncMock()), \
+         patch('worker.main.pool_service.lease_sandbox', new=AsyncMock(side_effect=Exception("Sandbox lease failed"))):
         mock_backend_client = AsyncMock()
         mock_backend_client.emit_run_event = AsyncMock()
         mock_backend_client_cls.return_value = mock_backend_client
@@ -210,7 +215,85 @@ async def test_execute_task_run_failure_updates_status():
         await execute_task_run(task_run_id, mock_session)
 
         assert mock_task_run.status == TaskStatus.FAILED
-        assert mock_task_run.error_message == "Sandbox creation failed"
+        assert mock_task_run.error_message == "Sandbox lease failed"
+
+
+@pytest.mark.asyncio
+async def test_execute_task_run_failure_reloads_state_after_rollback():
+    """Failure path should reload ORM state instead of reusing expired objects."""
+    from worker.main import execute_task_run
+    from db_models import Task, TaskRun, TaskStatus
+
+    task_run_id = uuid.uuid4()
+    task_id = uuid.uuid4()
+
+    class PoisonedTask:
+        def __init__(self, task_id, current_run_id):
+            self.id = task_id
+            self.goal = "test goal"
+            self.model = None
+            self.skill = None
+            self._current_run_id = current_run_id
+            self.poisoned = False
+
+        @property
+        def current_run_id(self):
+            if self.poisoned:
+                raise RuntimeError("stale task accessed after rollback")
+            return self._current_run_id
+
+        @current_run_id.setter
+        def current_run_id(self, value):
+            self._current_run_id = value
+
+    original_task = PoisonedTask(task_id, task_run_id)
+
+    original_task_run = Mock(spec=TaskRun)
+    original_task_run.id = task_run_id
+    original_task_run.task_id = task_id
+    original_task_run.status = TaskStatus.RUNNING
+    original_task_run.logs = None
+
+    reloaded_task = Mock(spec=Task)
+    reloaded_task.id = task_id
+    reloaded_task.goal = "test goal"
+    reloaded_task.model = None
+    reloaded_task.skill = None
+    reloaded_task.current_run_id = task_run_id
+
+    reloaded_task_run = Mock(spec=TaskRun)
+    reloaded_task_run.id = task_run_id
+    reloaded_task_run.task_id = task_id
+    reloaded_task_run.status = TaskStatus.RUNNING
+    reloaded_task_run.logs = None
+
+    mock_session = AsyncMock()
+    mock_session.execute = AsyncMock(side_effect=[
+        Mock(scalar_one=Mock(return_value=original_task_run)),
+        Mock(scalar_one=Mock(return_value=original_task)),
+        Mock(scalar_one_or_none=Mock(return_value=reloaded_task_run)),
+        Mock(scalar_one_or_none=Mock(return_value=reloaded_task)),
+    ])
+    mock_session.commit = AsyncMock()
+    mock_session.refresh = AsyncMock()
+
+    async def rollback_side_effect():
+        original_task.poisoned = True
+
+    mock_session.rollback = AsyncMock(side_effect=rollback_side_effect)
+
+    with patch("worker.main.BackendClient") as mock_backend_client_cls, \
+         patch('worker.main.pool_service.get_leased_sandbox_for_task_run', new=AsyncMock(return_value=None)), \
+         patch('worker.main.pool_service.ensure_min_capacity', new=AsyncMock()), \
+         patch('worker.main.pool_service.lease_sandbox', new=AsyncMock(side_effect=Exception("Sandbox lease failed"))):
+        mock_backend_client = AsyncMock()
+        mock_backend_client.emit_run_event = AsyncMock()
+        mock_backend_client_cls.return_value = mock_backend_client
+
+        await execute_task_run(task_run_id, mock_session)
+
+    assert reloaded_task_run.status == TaskStatus.FAILED
+    assert reloaded_task_run.error_message == "Sandbox lease failed"
 
 
 @pytest.mark.asyncio
@@ -243,7 +326,6 @@ async def test_execute_task_run_skips_when_sandbox_session_exists():
     mock_session.execute = AsyncMock(side_effect=[
         Mock(scalar_one=Mock(return_value=mock_task_run)),
         Mock(scalar_one=Mock(return_value=mock_task)),
-        Mock(scalar_one_or_none=Mock(return_value=mock_sandbox_session)),
     ])
     mock_session.commit = AsyncMock()
 
@@ -251,10 +333,79 @@ async def test_execute_task_run_skips_when_sandbox_session_exists():
     mock_sandbox_cls = Mock()
     fake_sandbox_module.SandboxManager = mock_sandbox_cls
 
-    with patch.dict(sys.modules, {"sandbox.manager": fake_sandbox_module}):
+    with patch.dict(sys.modules, {"sandbox.manager": fake_sandbox_module}), \
+         patch('worker.main.pool_service.get_leased_sandbox_for_task_run', new=AsyncMock(return_value=mock_sandbox_session)):
         await execute_task_run(task_run_id, mock_session)
 
     mock_sandbox_cls.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_execute_task_run_recycles_sandbox_when_return_fails():
+    """Return failures should recycle the leased sandbox."""
+    from worker.main import execute_task_run
+    from db_models import Task, TaskRun, TaskStatus
+
+    task_run_id = uuid.uuid4()
+    task_id = uuid.uuid4()
+
+    mock_task = Mock(spec=Task)
+    mock_task.id = task_id
+    mock_task.goal = "test goal"
+    mock_task.model = None
+    mock_task.skill = None
+    mock_task.current_run_id = task_run_id
+
+    mock_task_run = Mock(spec=TaskRun)
+    mock_task_run.id = task_run_id
+    mock_task_run.task_id = task_id
+    mock_task_run.status = TaskStatus.RUNNING
+    mock_task_run.logs = None
+
+    mock_sandbox_session = Mock()
+    mock_sandbox_session.container_id = "container_123"
+    mock_sandbox_session.reuse_count = 1
+
+    mock_session = AsyncMock()
+    mock_session.execute = AsyncMock(side_effect=[
+        Mock(scalar_one=Mock(return_value=mock_task_run)),
+        Mock(scalar_one=Mock(return_value=mock_task)),
+    ])
+    mock_session.commit = AsyncMock()
+    mock_session.refresh = AsyncMock()
+
+    fake_sandbox_module = types.ModuleType("sandbox.manager")
+    mock_sandbox_cls = Mock()
+    mock_sandbox = AsyncMock()
+    mock_sandbox_cls.from_session = Mock(return_value=mock_sandbox)
+    fake_sandbox_module.SandboxManager = mock_sandbox_cls
+
+    with patch.dict(sys.modules, {"sandbox.manager": fake_sandbox_module}), \
+         patch("worker.main.BackendClient") as mock_backend_client_cls, \
+         patch('worker.main.retrieve_project_context', new=AsyncMock(return_value=None)), \
+         patch('worker.main.pool_service.get_leased_sandbox_for_task_run', new=AsyncMock(return_value=None)), \
+         patch('worker.main.pool_service.ensure_min_capacity', new=AsyncMock()), \
+         patch('worker.main.pool_service.lease_sandbox', new=AsyncMock(return_value=mock_sandbox_session)), \
+         patch('worker.main.pool_service.mark_resetting', new=AsyncMock()), \
+         patch('worker.main.pool_service.reset_sandbox', new=AsyncMock()), \
+         patch('worker.main.pool_service.health_check_sandbox', new=AsyncMock()), \
+         patch('worker.main.pool_service.return_sandbox', new=AsyncMock(side_effect=Exception("return failed"))), \
+         patch('worker.main.pool_service.recycle_sandbox', new=AsyncMock()) as mock_recycle_sandbox:
+        mock_backend_client = AsyncMock()
+        mock_backend_client.emit_run_event = AsyncMock()
+        mock_backend_client_cls.return_value = mock_backend_client
+
+        with patch('worker.main.create_model_provider') as mock_model, \
+             patch('worker.main.get_all_tools', return_value=[]), \
+             patch('worker.main.Agent') as mock_agent_cls:
+            mock_model.return_value = Mock()
+            mock_agent = AsyncMock()
+            mock_agent.run = AsyncMock(return_value="test result")
+            mock_agent_cls.return_value = mock_agent
+
+        await execute_task_run(task_run_id, mock_session)
+
+    mock_recycle_sandbox.assert_awaited_once()
 
 
 @pytest.mark.asyncio
@@ -277,6 +428,51 @@ async def test_get_next_pending_index_job_claims_job():
     assert result.status == DocumentIndexStatus.RUNNING
     assert result.started_at is not None
     mock_session.commit.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_claim_document_index_job_by_id_claims_pending_job():
+    """Specific pending index job should transition to RUNNING exactly once."""
+    from worker.main import claim_document_index_job_by_id
+    from db_models import DocumentIndexStatus
+
+    job_id = uuid.uuid4()
+    mock_job = Mock()
+    mock_job.id = job_id
+    mock_job.status = DocumentIndexStatus.PENDING
+    mock_job.started_at = None
+
+    mock_session = AsyncMock()
+    mock_session.execute = AsyncMock(return_value=Mock(scalar_one_or_none=Mock(return_value=mock_job)))
+    mock_session.commit = AsyncMock()
+
+    result = await claim_document_index_job_by_id(mock_session, job_id)
+
+    assert result == mock_job
+    assert mock_job.status == DocumentIndexStatus.RUNNING
+    assert mock_job.started_at is not None
+    mock_session.commit.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_claim_document_index_job_by_id_skips_non_pending_job():
+    """Repeated delivery should not reclaim a non-pending index job."""
+    from worker.main import claim_document_index_job_by_id
+    from db_models import DocumentIndexStatus
+
+    job_id = uuid.uuid4()
+    mock_job = Mock()
+    mock_job.id = job_id
+    mock_job.status = DocumentIndexStatus.COMPLETED
+
+    mock_session = AsyncMock()
+    mock_session.execute = AsyncMock(return_value=Mock(scalar_one_or_none=Mock(return_value=mock_job)))
+    mock_session.commit = AsyncMock()
+
+    result = await claim_document_index_job_by_id(mock_session, job_id)
+
+    assert result is None
+    mock_session.commit.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -346,6 +542,8 @@ async def test_execute_document_index_job_fails_without_openai_key():
         await execute_document_index_job(job_id, mock_session)
 
     assert mock_job.status == DocumentIndexStatus.FAILED
+    assert mock_job.error_code == "openai_api_key_missing"
+    assert mock_job.failed_step == "validate_configuration"
     assert "OPENAI_API_KEY" in (mock_job.error_message or "")
     mock_download.assert_not_called()
 

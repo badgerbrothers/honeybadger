@@ -19,3 +19,13 @@ class SandboxExecutionError(SandboxError):
 class SandboxCleanupError(SandboxError):
     """Failed to cleanup sandbox."""
     pass
+
+
+class SandboxPoolExhaustedError(SandboxError):
+    """No reusable sandbox is currently available."""
+    pass
+
+
+class SandboxHealthCheckError(SandboxError):
+    """Sandbox failed post-reset health validation."""
+    pass
