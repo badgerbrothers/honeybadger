@@ -7,11 +7,16 @@ import type {
   ApiModelSettings,
   ApiProject,
   ApiProjectFileUploadResponse,
+  ApiProjectMultipartUploadCompletePart,
+  ApiProjectMultipartUploadCreateResponse,
   ApiProjectNode,
   ApiProjectRagBinding,
   ApiRagCollection,
   ApiRagFile,
+  ApiRagFilePreview,
   ApiRagFileUploadResponse,
+  ApiRagMultipartUploadCompletePart,
+  ApiRagMultipartUploadCreateResponse,
   ApiRoleDoc,
   ApiSkillDoc,
   ApiTask,
@@ -32,14 +37,26 @@ export const projectsApi = {
 
   listFiles: (projectId: string) =>
     apiFetch<ApiProjectNode[]>(`/projects/${projectId}/files`),
-  uploadFile: (projectId: string, file: File) => {
-    const fd = new FormData();
-    fd.append("file", file);
-    return apiFetch<ApiProjectFileUploadResponse>(`/projects/${projectId}/files/upload`, {
+  createMultipartUpload: (
+    projectId: string,
+    payload: { file_name: string; file_size: number; mime_type: string | null },
+  ) =>
+    apiFetch<ApiProjectMultipartUploadCreateResponse>(`/projects/${projectId}/files/multipart`, {
       method: "POST",
-      body: fd,
-    });
-  },
+      body: payload,
+    }),
+  completeMultipartUpload: (
+    projectId: string,
+    payload: { upload_session_id: string; parts: ApiProjectMultipartUploadCompletePart[] },
+  ) =>
+    apiFetch<ApiProjectFileUploadResponse>(`/projects/${projectId}/files/multipart/complete`, {
+      method: "POST",
+      body: payload,
+    }),
+  abortMultipartUpload: (projectId: string, uploadSessionId: string) =>
+    apiFetch<void>(`/projects/${projectId}/files/multipart/${uploadSessionId}`, {
+      method: "DELETE",
+    }),
   deleteFile: (projectId: string, fileId: string) =>
     apiFetch<void>(`/projects/${projectId}/files/${fileId}`, { method: "DELETE" }),
 
@@ -142,12 +159,26 @@ export const ragsApi = {
   remove: (ragId: string) => apiFetch<void>(`/rags/${ragId}`, { method: "DELETE" }),
 
   files: (ragId: string) => apiFetch<ApiRagFile[]>(`/rags/${ragId}/files`),
-  uploadFile: (ragId: string, file: File) => {
-    const fd = new FormData();
-    fd.append("file", file);
-    return apiFetch<ApiRagFileUploadResponse>(`/rags/${ragId}/files/upload`, {
+  previewFile: (ragId: string, fileId: string) =>
+    apiFetch<ApiRagFilePreview>(`/rags/${ragId}/files/${fileId}/preview`),
+  createMultipartUpload: (
+    ragId: string,
+    payload: { file_name: string; file_size: number; mime_type: string | null },
+  ) =>
+    apiFetch<ApiRagMultipartUploadCreateResponse>(`/rags/${ragId}/files/multipart`, {
       method: "POST",
-      body: fd,
-    });
-  },
+      body: payload,
+    }),
+  completeMultipartUpload: (
+    ragId: string,
+    payload: { upload_session_id: string; parts: ApiRagMultipartUploadCompletePart[] },
+  ) =>
+    apiFetch<ApiRagFileUploadResponse>(`/rags/${ragId}/files/multipart/complete`, {
+      method: "POST",
+      body: payload,
+    }),
+  abortMultipartUpload: (ragId: string, uploadSessionId: string) =>
+    apiFetch<void>(`/rags/${ragId}/files/multipart/${uploadSessionId}`, {
+      method: "DELETE",
+    }),
 };

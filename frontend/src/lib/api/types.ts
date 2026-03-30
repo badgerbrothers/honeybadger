@@ -35,6 +35,27 @@ export interface ApiProjectFileUploadResponse {
   created_at: string;
 }
 
+export interface ApiProjectMultipartUploadPart {
+  part_number: number;
+  url: string;
+}
+
+export interface ApiProjectMultipartUploadCreateResponse {
+  upload_session_id: string;
+  file_id: string;
+  path: string;
+  upload_id: string;
+  part_size: number;
+  part_count: number;
+  expires_in_seconds: number;
+  parts: ApiProjectMultipartUploadPart[];
+}
+
+export interface ApiProjectMultipartUploadCompletePart {
+  part_number: number;
+  etag: string;
+}
+
 export interface ApiConversation {
   id: string;
   project_id: string;
@@ -163,6 +184,35 @@ export interface ApiRagFile {
 
 export interface ApiRagFileUploadResponse extends ApiRagFile {
   index_job_id: string | null;
+}
+
+export interface ApiRagMultipartUploadPart {
+  part_number: number;
+  url: string;
+}
+
+export interface ApiRagMultipartUploadCreateResponse {
+  upload_session_id: string;
+  file_id: string;
+  storage_path: string;
+  upload_id: string;
+  part_size: number;
+  part_count: number;
+  expires_in_seconds: number;
+  parts: ApiRagMultipartUploadPart[];
+}
+
+export interface ApiRagMultipartUploadCompletePart {
+  part_number: number;
+  etag: string;
+}
+
+export interface ApiRagFilePreview {
+  file_id: string;
+  file_name: string;
+  mime_type: string | null;
+  content: string;
+  truncated: boolean;
 }
 
 export interface ApiProjectRagBinding {

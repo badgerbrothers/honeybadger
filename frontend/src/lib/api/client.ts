@@ -102,7 +102,7 @@ async function executeFetch(
   }
 
   try {
-    return await fetch(url, init);
+  return await fetch(url, init);
   } catch (error) {
     if (typeof window !== "undefined") {
       try {
@@ -122,6 +122,85 @@ async function executeFetch(
       error,
     );
   }
+}
+
+interface ApiUploadOptions {
+  headers?: Record<string, string>;
+  skipAuth?: boolean;
+  onUploadProgress?: (loaded: number, total: number) => void;
+}
+
+function toApiError(status: number, detail: unknown): ApiError {
+  const message =
+    (typeof detail === "object" &&
+      detail &&
+      ("message" in detail || "detail" in detail) &&
+      String((detail as any).message ?? (detail as any).detail)) ||
+    (typeof detail === "string" && detail) ||
+    `Request failed (${status})`;
+  return new ApiError(message, status, detail);
+}
+
+function parseXhrErrorPayload(contentType: string | null, responseText: string): unknown {
+  if ((contentType ?? "").includes("application/json")) {
+    try {
+      return JSON.parse(responseText);
+    } catch {
+      return responseText;
+    }
+  }
+  return responseText;
+}
+
+async function executeUpload<T>(
+  path: string,
+  formData: FormData,
+  {
+    headers = {},
+    skipAuth = false,
+    onUploadProgress,
+  }: ApiUploadOptions = {},
+): Promise<T> {
+  const url = toAbsoluteUrl(path);
+
+  const token = !skipAuth ? authBridge?.getAccessToken() : null;
+
+  return await new Promise<T>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", url, true);
+
+    Object.entries(headers).forEach(([key, value]) => {
+      xhr.setRequestHeader(key, value);
+    });
+    if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+
+    xhr.upload.onprogress = (event) => {
+      if (!event.lengthComputable || !onUploadProgress) return;
+      onUploadProgress(event.loaded, event.total);
+    };
+
+    xhr.onerror = () => {
+      reject(
+        new ApiError(
+          `Network error calling ${url}. Check that API gateway is reachable at ${API_BASE_URL}.`,
+          0,
+          null,
+        ),
+      );
+    };
+
+    xhr.onload = () => {
+      const contentType = xhr.getResponseHeader("content-type");
+      const detail = parseXhrErrorPayload(contentType, xhr.responseText);
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve(detail as T);
+        return;
+      }
+      reject(toApiError(xhr.status, detail));
+    };
+
+    xhr.send(formData);
+  });
 }
 
 export async function apiFetch<T = unknown>(
@@ -151,4 +230,25 @@ export async function apiFetch<T = unknown>(
     return text as T;
   }
   return (await response.json()) as T;
+}
+
+export async function apiUpload<T = unknown>(
+  path: string,
+  formData: FormData,
+  options: ApiUploadOptions = {},
+): Promise<T> {
+  try {
+    return await executeUpload<T>(path, formData, options);
+  } catch (error) {
+    if (!(error instanceof ApiError) || error.status !== 401 || options.skipAuth || !authBridge) {
+      throw error;
+    }
+  }
+
+  const nextAccessToken = await authBridge.refreshAccessToken();
+  if (!nextAccessToken) {
+    throw new ApiError("Authentication required.", 401, null);
+  }
+
+  return await executeUpload<T>(path, formData, options);
 }
