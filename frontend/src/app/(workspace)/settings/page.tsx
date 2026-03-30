@@ -58,7 +58,7 @@ export default function SettingsPage() {
         );
       } catch (error) {
         if (cancelled) return;
-        setLoadError(error instanceof Error ? error.message : "????????");
+        setLoadError(error instanceof Error ? error.message : "加载设置失败");
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -110,7 +110,7 @@ export default function SettingsPage() {
         }),
       );
     } catch (error) {
-      setSaveError(error instanceof Error ? error.message : "????????");
+      setSaveError(error instanceof Error ? error.message : "保存设置失败");
     } finally {
       setSaving(false);
     }
@@ -151,16 +151,16 @@ export default function SettingsPage() {
     <main className={`main-content ${styles.page}`}>
       <header className={`header ${styles.pageHeader}`}>
         <div className={styles.titleBlock}>
-          <h1 className="header-title">????</h1>
+          <h1 className="header-title">模型设置</h1>
           <p className={styles.subtitle}>
-            ???? OpenAI?A ??????????????????????
+            在这里配置 OpenAI、Anthropic 和自定义服务商的密钥、地址与默认模型。
           </p>
         </div>
 
         <div className={styles.headerActions}>
           <button className="manus-btn" type="button" onClick={resetCurrentProvider} disabled={loading || saving}>
             <RotateCcw size={16} />
-            ??????
+            重置当前
           </button>
           <button
             className="manus-btn manus-btn-primary"
@@ -169,10 +169,10 @@ export default function SettingsPage() {
             disabled={loading || saving}
           >
             <Save size={16} />
-            {saving ? "???..." : "??????"}
+            {saving ? "保存中..." : "保存设置"}
           </button>
           <Link className="manus-btn" href="/conversation" aria-label="Back to conversation">
-            ????
+            返回会话
           </Link>
         </div>
       </header>
@@ -180,8 +180,8 @@ export default function SettingsPage() {
       <div className={styles.content}>
         <SettingsNotice />
 
-        {loadError ? <section className={styles.errorBanner}>????????:{loadError}</section> : null}
-        {saveError ? <section className={styles.errorBanner}>????????:{saveError}</section> : null}
+        {loadError ? <section className={styles.errorBanner}>加载设置失败：{loadError}</section> : null}
+        {saveError ? <section className={styles.errorBanner}>保存设置失败：{saveError}</section> : null}
 
         <section className={styles.providerGrid} aria-label="Provider cards">
           {(Object.keys(providerMeta) as ProviderId[]).map((id) => (

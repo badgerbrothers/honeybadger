@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 
 import { AuthLogo } from "@/features/auth/AuthLogo";
-import { AuthOAuthButtons } from "@/features/auth/AuthOAuthButtons";
+// import { AuthOAuthButtons } from "@/features/auth/AuthOAuthButtons";
 import { useAuth } from "@/lib/auth/AuthContext";
 
 export type AuthMode = "login" | "register";
@@ -151,9 +151,9 @@ export function AuthPage({ mode }: AuthPageProps) {
           </button>
         </form>
 
-        <div className="auth-divider">或</div>
+        {/* <div className="auth-divider">或</div>
 
-        <AuthOAuthButtons />
+        <AuthOAuthButtons /> */}
 
         <p className="auth-footer">
           {isLogin ? (

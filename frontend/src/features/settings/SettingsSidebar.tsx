@@ -59,7 +59,7 @@ export function SettingsSidebar({
       <section className={styles.infoCard}>
         <div className={styles.sideTitle}>当前项目环境变量映射</div>
         <ul className={styles.mappingList}>
-          <li>`OpenAI / 天机中转站` 对应 `OPENAI_API_KEY` 和 `OPENAI_BASE_URL`</li>
+          <li>`OpenAI / 自定义服务商` 对应 `OPENAI_API_KEY` 和 `OPENAI_BASE_URL`</li>
           <li>`A 站 / Anthropic` 对应 `ANTHROPIC_API_KEY`</li>
           <li>`DEFAULT_MAIN_MODEL` 需要和后端支持模型保持一致</li>
         </ul>

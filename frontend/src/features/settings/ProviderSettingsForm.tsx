@@ -83,8 +83,8 @@ export function ProviderSettingsForm({
           <span className={styles.label}>API 地址</span>
           <span className={styles.hint}>
             {meta.baseUrlMode === "readonly"
-              ? "官方提供商固定展示官方地址。"
-              : "天机中转站可以自定义 OpenAI 兼容网关地址。"}
+              ? "官方提供商固定显示官方地址。"
+              : "自定义服务商可以填写 OpenAI 兼容网关地址。"}
           </span>
           <div className={styles.inputWrap}>
             <input
@@ -116,13 +116,13 @@ export function ProviderSettingsForm({
 
         <label className={styles.field}>
           <span className={styles.label}>备注</span>
-          <span className={styles.hint}>用于记录这是官方直连、A 站备用还是某个中转环境。</span>
+          <span className={styles.hint}>用于记录这是官方直连、A 站备用还是某个自定义服务环境。</span>
           <textarea
             className={styles.textarea}
             rows={4}
             value={current.note}
             onChange={(event) => onUpdate({ note: event.target.value })}
-            placeholder="例如：测试环境走天机中转，生产环境走官方。"
+            placeholder="例如：测试环境走自定义服务商，生产环境走官方。"
             disabled={loading}
           />
         </label>

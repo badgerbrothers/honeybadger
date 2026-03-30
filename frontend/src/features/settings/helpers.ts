@@ -16,7 +16,7 @@ export const providerMeta: Record<ProviderId, ProviderMeta> = {
   anthropic: {
     label: "A 站 / Anthropic",
     shortLabel: "Anthropic",
-    description: "单独填写 Anthropic 密钥，地址默认展示官方入口。",
+    description: "单独填写 Anthropic 密钥，地址默认显示官方入口。",
     accent: "#d97706",
     tint: "linear-gradient(135deg, rgba(217,119,6,0.12), rgba(217,119,6,0.02))",
     defaultBaseUrl: "https://api.anthropic.com",
@@ -24,14 +24,14 @@ export const providerMeta: Record<ProviderId, ProviderMeta> = {
     apiKeyHint: "sk-ant-...",
   },
   relay: {
-    label: "天机中转站",
-    shortLabel: "Relay",
-    description: "用于兼容 OpenAI 协议的自定义网关，可自定义 API 地址。",
+    label: "自定义服务商",
+    shortLabel: "Custom",
+    description: "用于接入兼容 OpenAI 协议的自定义服务商，可自定义 API 地址。",
     accent: "#2563eb",
     tint: "linear-gradient(135deg, rgba(37,99,235,0.14), rgba(37,99,235,0.03))",
-    defaultBaseUrl: "https://your-relay.example.com/v1",
+    defaultBaseUrl: "https://your-provider.example.com/v1",
     baseUrlMode: "editable",
-    apiKeyHint: "relay-key-...",
+    apiKeyHint: "provider-key-...",
   },
 };
 
@@ -55,7 +55,7 @@ export const defaultProviders: ProviderMap = {
     apiKey: "",
     baseUrl: providerMeta.relay.defaultBaseUrl,
     mainModel: "gpt-5.3-codex",
-    note: "兼容 OpenAI 协议的天机中转站",
+    note: "兼容 OpenAI 协议的自定义服务商",
   },
 };
 
