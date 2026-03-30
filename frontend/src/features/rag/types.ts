@@ -18,6 +18,12 @@ export interface RagFile {
   size: number;
   updatedAt: string;
   path: string;
+  status?: string;
+  errorMessage?: string | null;
+  uploadProgress?: number;
+  uploadState?: "waiting" | "uploading" | "completed" | "failed";
+  indexProgress?: number;
+  indexState?: "waiting" | "pending" | "running" | "completed" | "failed";
+  isTransient?: boolean;
   previewText?: string;
 }
-

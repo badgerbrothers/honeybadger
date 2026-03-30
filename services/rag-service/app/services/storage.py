@@ -3,11 +3,13 @@ from __future__ import annotations
 
 import asyncio
 import io
+from datetime import timedelta
 from typing import BinaryIO
 from urllib.parse import urlparse
 
 from minio import Minio
 from minio.commonconfig import CopySource
+from minio.datatypes import Part
 from minio.error import S3Error
 import structlog
 from app.config import settings
@@ -20,12 +22,24 @@ class StorageService:
 
     def __init__(self):
         endpoint, secure = self._resolve_endpoint(settings.s3_endpoint, settings.s3_secure)
+        public_endpoint, public_secure = self._resolve_endpoint(
+            settings.s3_public_endpoint,
+            settings.s3_public_secure,
+        )
         self.client = Minio(
             endpoint,
             access_key=settings.s3_access_key,
             secret_key=settings.s3_secret_key,
             secure=secure
         )
+        self.public_client = Minio(
+            public_endpoint,
+            access_key=settings.s3_access_key,
+            secret_key=settings.s3_secret_key,
+            secure=public_secure,
+        )
+        self.client._region_map[settings.s3_bucket] = "us-east-1"
+        self.public_client._region_map[settings.s3_bucket] = "us-east-1"
         self._bucket_checked = False
 
     @staticmethod
@@ -124,6 +138,26 @@ class StorageService:
                 response.close()
                 response.release_conn()
 
+    async def download_file_range(self, object_name: str, offset: int = 0, length: int = 0) -> bytes:
+        """Download a byte range from MinIO."""
+        self._ensure_bucket()
+        response = None
+        try:
+            response = self.client.get_object(
+                settings.s3_bucket,
+                object_name,
+                offset=offset,
+                length=length,
+            )
+            return response.read()
+        except S3Error as e:
+            logger.error("download_range_failed", object_name=object_name, error=str(e))
+            raise
+        finally:
+            if response is not None:
+                response.close()
+                response.release_conn()
+
     async def delete_file(self, object_name: str):
         """Delete file from MinIO."""
         self._ensure_bucket()
@@ -151,6 +185,83 @@ class StorageService:
                 error=str(e),
             )
             raise
+
+    async def create_multipart_upload(
+        self,
+        object_name: str,
+        content_type: str = "application/octet-stream",
+    ) -> str:
+        """Create an S3/MinIO multipart upload session."""
+        self._ensure_bucket()
+        headers = {"Content-Type": content_type}
+        return await asyncio.to_thread(
+            self.client._create_multipart_upload,
+            settings.s3_bucket,
+            object_name,
+            headers,
+        )
+
+    async def get_presigned_multipart_part_url(
+        self,
+        object_name: str,
+        upload_id: str,
+        part_number: int,
+        expires_seconds: int | None = None,
+    ) -> str:
+        """Return a browser-safe signed URL for one multipart upload part."""
+        return await asyncio.to_thread(
+            self.public_client.get_presigned_url,
+            "PUT",
+            settings.s3_bucket,
+            object_name,
+            timedelta(seconds=expires_seconds or settings.rag_multipart_url_expiry_seconds),
+            None,
+            None,
+            None,
+            {
+                "partNumber": str(part_number),
+                "uploadId": upload_id,
+            },
+        )
+
+    async def complete_multipart_upload(
+        self,
+        object_name: str,
+        upload_id: str,
+        parts: list[tuple[int, str]],
+    ) -> None:
+        """Finalize an S3/MinIO multipart upload."""
+        self._ensure_bucket()
+        normalized_parts = [
+            Part(part_number=part_number, etag=etag.strip().strip('"'))
+            for part_number, etag in sorted(parts, key=lambda item: item[0])
+        ]
+        await asyncio.to_thread(
+            self.client._complete_multipart_upload,
+            settings.s3_bucket,
+            object_name,
+            upload_id,
+            normalized_parts,
+        )
+
+    async def abort_multipart_upload(self, object_name: str, upload_id: str) -> None:
+        """Abort an in-flight multipart upload."""
+        self._ensure_bucket()
+        await asyncio.to_thread(
+            self.client._abort_multipart_upload,
+            settings.s3_bucket,
+            object_name,
+            upload_id,
+        )
+
+    async def stat_file(self, object_name: str):
+        """Fetch object metadata from MinIO."""
+        self._ensure_bucket()
+        return await asyncio.to_thread(
+            self.client.stat_object,
+            settings.s3_bucket,
+            object_name,
+        )
 
 
 storage_service = StorageService()

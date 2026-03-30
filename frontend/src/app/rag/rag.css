@@ -1,20 +1,31 @@
 .rag-sidebar {
   width: 320px;
+  height: 100vh;
+  min-height: 100vh;
 }
 
 .rag-workspace {
   flex-direction: row;
   height: 100vh;
+  width: 100%;
+  min-width: 0;
 }
 
 .rag-workspace .manus-main-content {
-  flex: 1 1 auto;
+  flex: 1 1 0;
   min-width: 0;
   width: 100%;
   max-width: none;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  min-height: 100vh;
+}
+
+.rag-workspace .manus-sidebar {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
 }
 
 .rag-workspace .manus-content-area {
@@ -144,8 +155,10 @@
 .rag-list {
   display: flex;
   flex-direction: column;
+  flex: 1 1 auto;
   gap: 0.25rem;
   overflow-y: auto;
+  min-height: 0;
   padding: 0 0.5rem 0.5rem;
 }
 
@@ -315,6 +328,7 @@
   border-radius: 1rem;
   background: #ffffff;
   overflow: hidden;
+  min-width: 0;
 }
 
 .rag-card-header {
@@ -338,9 +352,9 @@
 
 .rag-detail-grid {
   display: grid;
-  grid-template-columns: 340px minmax(0, 1fr);
+  grid-template-columns: minmax(320px, 360px) minmax(0, 1fr);
   gap: 1rem;
-  align-items: start;
+  align-items: stretch;
   width: 100%;
 }
 
@@ -418,6 +432,70 @@
   display: flex;
   justify-content: space-between;
   gap: 0.75rem;
+}
+
+.rag-file-progress-group {
+  margin-top: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.rag-file-progress-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.32rem;
+}
+
+.rag-file-progress-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: 0.76rem;
+  color: #64748b;
+}
+
+.rag-file-progress-track {
+  width: 100%;
+  height: 7px;
+  border-radius: 999px;
+  background: #e5e7eb;
+  overflow: hidden;
+}
+
+.rag-file-progress-fill {
+  height: 100%;
+  border-radius: inherit;
+  transition: width 0.25s ease;
+  background: #cbd5e1;
+}
+
+.rag-file-progress-fill.is-uploading,
+.rag-file-progress-fill.is-running,
+.rag-file-progress-fill.is-pending {
+  background-image: linear-gradient(90deg, #60a5fa, #2563eb, #60a5fa);
+  background-size: 200% 100%;
+  animation: rag-progress-shift 1.6s linear infinite;
+}
+
+.rag-file-progress-fill.is-completed {
+  background: linear-gradient(90deg, #34d399, #10b981);
+}
+
+.rag-file-progress-fill.is-failed {
+  background: linear-gradient(90deg, #f87171, #dc2626);
+}
+
+.rag-file-progress-fill.is-waiting {
+  background: #d4d4d8;
+}
+
+.rag-file-error {
+  margin-top: 0.65rem;
+  color: #b91c1c;
+  font-size: 0.82rem;
+  line-height: 1.45;
 }
 
 .rag-preview-pre {
@@ -508,4 +586,13 @@
 .rag-modal-body {
   padding: 1rem 1.25rem;
   overflow: auto;
+}
+
+@keyframes rag-progress-shift {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: 0 0;
+  }
 }

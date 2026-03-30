@@ -47,12 +47,23 @@ class Settings(BaseSettings):
         default="badgers-artifacts",
         validation_alias=AliasChoices("S3_BUCKET", "MINIO_BUCKET"),
     )
+    s3_public_endpoint: str = Field(
+        default="127.0.0.1:9000",
+        validation_alias=AliasChoices("S3_PUBLIC_ENDPOINT", "MINIO_PUBLIC_ENDPOINT"),
+    )
     s3_secure: bool = Field(
         default=False,
         validation_alias=AliasChoices("S3_SECURE", "MINIO_SECURE"),
     )
+    s3_public_secure: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("S3_PUBLIC_SECURE", "MINIO_PUBLIC_SECURE"),
+    )
     s3_multipart_part_size: int = 10 * 1024 * 1024
-    s3_num_parallel_uploads: int = 3
+    s3_num_parallel_uploads: int = 12
+    rag_multipart_url_expiry_seconds: int = 3600
+    rag_upload_max_bytes: int = 10 * 1024 * 1024 * 1024
+    rag_pdf_upload_max_bytes: int = 10 * 1024 * 1024 * 1024
 
     @property
     def rabbitmq_url(self) -> str:

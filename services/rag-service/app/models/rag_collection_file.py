@@ -4,7 +4,7 @@ from __future__ import annotations
 import enum
 import uuid
 
-from sqlalchemy import Enum as SQLEnum, ForeignKey, Integer, String, Text
+from sqlalchemy import BigInteger, Enum as SQLEnum, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base, TimestampMixin
@@ -32,7 +32,7 @@ class RagCollectionFile(Base, TimestampMixin):
     )
     storage_path: Mapped[str] = mapped_column(String(1024), nullable=False)
     file_name: Mapped[str] = mapped_column(String(255), nullable=False)
-    file_size: Mapped[int] = mapped_column(Integer, nullable=False)
+    file_size: Mapped[int] = mapped_column(BigInteger, nullable=False)
     mime_type: Mapped[str | None] = mapped_column(String(255), nullable=True)
     status: Mapped[RagFileStatus] = mapped_column(
         SQLEnum(RagFileStatus),

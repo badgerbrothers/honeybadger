@@ -30,3 +30,13 @@ class RagFileUploadResponse(RagFileResponse):
     """Upload response with optional indexing job id."""
 
     index_job_id: uuid.UUID | None = None
+
+
+class RagFilePreviewResponse(BaseModel):
+    """Preview payload for text-like RAG files."""
+
+    file_id: uuid.UUID
+    file_name: str
+    mime_type: str | None
+    content: str
+    truncated: bool

@@ -5,6 +5,12 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { useRag } from "./RagContext";
+import { ragsApi } from "@/lib/api/endpoints";
+import {
+  KNOWLEDGE_FILE_ACCEPT,
+  describeRagUploadError,
+  validateRagKnowledgeFiles,
+} from "@/lib/fileUpload";
 
 function bytes(n: number) {
   if (n < 1024) return `${n} B`;
@@ -16,6 +22,29 @@ function isTextLike(mimeType: string, name: string) {
   if (mimeType.startsWith("text/")) return true;
   const lower = name.toLowerCase();
   return lower.endsWith(".md") || lower.endsWith(".txt") || lower.endsWith(".json");
+}
+
+function clampProgress(progress: number | undefined) {
+  if (!Number.isFinite(progress)) return 0;
+  return Math.max(0, Math.min(100, Math.round(progress ?? 0)));
+}
+
+function uploadLabelForFile(file: { uploadState?: string; uploadProgress?: number }) {
+  if (file.uploadState === "failed") return "Upload failed";
+  if (file.uploadState === "completed") return "Upload complete";
+  if (file.uploadState === "uploading" && clampProgress(file.uploadProgress) >= 100) {
+    return "Finalizing upload";
+  }
+  if (file.uploadState === "uploading") return `Uploading ${clampProgress(file.uploadProgress)}%`;
+  return "Waiting to upload";
+}
+
+function indexLabelForFile(file: { indexState?: string }) {
+  if (file.indexState === "failed") return "Index failed";
+  if (file.indexState === "completed") return "Index complete";
+  if (file.indexState === "running") return "Indexing";
+  if (file.indexState === "pending") return "Queued for indexing";
+  return "Waiting for upload";
 }
 
 export function RagDetailPage({ ragId }: { ragId: string }) {
@@ -32,10 +61,15 @@ export function RagDetailPage({ ragId }: { ragId: string }) {
   } = useRag();
   const [previewFileId, setPreviewFileId] = useState<string | null>(null);
   const uploadInputRef = useRef<HTMLInputElement | null>(null);
+  const pendingUploadCallsRef = useRef(0);
   const actionMenuRef = useRef<HTMLDivElement | null>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [actionsOpen, setActionsOpen] = useState(false);
+  const [previewContent, setPreviewContent] = useState<string | null>(null);
+  const [previewTruncated, setPreviewTruncated] = useState(false);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
 
   useEffect(() => {
     selectRag(ragId);
@@ -61,6 +95,47 @@ export function RagDetailPage({ ragId }: { ragId: string }) {
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [previewFileId]);
+
+  useEffect(() => {
+    if (!previewFile) {
+      setPreviewContent(null);
+      setPreviewTruncated(false);
+      setPreviewLoading(false);
+      setPreviewError(null);
+      return;
+    }
+    if (!isTextLike(previewFile.mimeType, previewFile.name)) {
+      setPreviewContent(null);
+      setPreviewTruncated(false);
+      setPreviewLoading(false);
+      setPreviewError(null);
+      return;
+    }
+
+    let cancelled = false;
+    setPreviewLoading(true);
+    setPreviewError(null);
+    setPreviewContent(null);
+    setPreviewTruncated(false);
+
+    void (async () => {
+      try {
+        const payload = await ragsApi.previewFile(ragId, previewFile.id);
+        if (cancelled) return;
+        setPreviewContent(payload.content);
+        setPreviewTruncated(payload.truncated);
+      } catch (err) {
+        if (cancelled) return;
+        setPreviewError(err instanceof Error ? err.message : "Preview failed.");
+      } finally {
+        if (!cancelled) setPreviewLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [previewFile, ragId]);
 
   useEffect(() => {
     if (!actionsOpen) return;
@@ -189,19 +264,27 @@ export function RagDetailPage({ ragId }: { ragId: string }) {
                 ref={uploadInputRef}
                 type="file"
                 multiple
+                accept={KNOWLEDGE_FILE_ACCEPT}
                 style={{ display: "none" }}
                 onChange={async (event) => {
                   const picked = Array.from(event.currentTarget.files ?? []);
                   event.currentTarget.value = "";
                   if (picked.length === 0) return;
+                  const validationError = validateRagKnowledgeFiles(picked);
+                  if (validationError) {
+                    setError(validationError);
+                    return;
+                  }
+                  pendingUploadCallsRef.current += 1;
                   setUploading(true);
                   setError(null);
                   try {
                     await uploadFiles(ragId, picked);
                   } catch (e) {
-                    setError(e instanceof Error ? e.message : "Upload failed");
+                    setError(describeRagUploadError(e));
                   } finally {
-                    setUploading(false);
+                    pendingUploadCallsRef.current = Math.max(0, pendingUploadCallsRef.current - 1);
+                    setUploading(pendingUploadCallsRef.current > 0);
                   }
                 }}
               />
@@ -238,6 +321,8 @@ export function RagDetailPage({ ragId }: { ragId: string }) {
               ) : (
                 files.map((f) => {
                   const active = activeFile?.id === f.id;
+                  const uploadProgress = clampProgress(f.uploadProgress);
+                  const indexProgress = clampProgress(f.indexProgress);
                   return (
                     <div
                       key={f.id}
@@ -262,6 +347,33 @@ export function RagDetailPage({ ragId }: { ragId: string }) {
                           <span>{bytes(f.size)}</span>
                           <span>{new Date(f.updatedAt).toLocaleString()}</span>
                         </div>
+                        <div className="rag-file-progress-group">
+                          <div className="rag-file-progress-row">
+                            <div className="rag-file-progress-head">
+                              <span>Upload</span>
+                              <span>{uploadLabelForFile(f)}</span>
+                            </div>
+                            <div className="rag-file-progress-track">
+                              <div
+                                className={`rag-file-progress-fill is-${f.uploadState ?? "waiting"}`}
+                                style={{ width: `${uploadProgress}%` }}
+                              />
+                            </div>
+                          </div>
+                          <div className="rag-file-progress-row">
+                            <div className="rag-file-progress-head">
+                              <span>Index</span>
+                              <span>{indexLabelForFile(f)}</span>
+                            </div>
+                            <div className="rag-file-progress-track">
+                              <div
+                                className={`rag-file-progress-fill is-${f.indexState ?? "waiting"}`}
+                                style={{ width: `${indexProgress}%` }}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                        {f.errorMessage ? <div className="rag-file-error">{f.errorMessage}</div> : null}
                       </div>
                       <div className="rag-file-actions">
                         <button
@@ -269,6 +381,7 @@ export function RagDetailPage({ ragId }: { ragId: string }) {
                           className="manus-btn"
                           aria-label={`View ${f.name}`}
                           title="View"
+                          disabled={f.uploadState === "uploading" || !f.path}
                           onClick={() => setPreviewFileId(f.id)}
                         >
                           查看
@@ -313,10 +426,20 @@ export function RagDetailPage({ ragId }: { ragId: string }) {
             </div>
             <div className="rag-modal-body">
               {isTextLike(previewFile.mimeType, previewFile.name) ? (
-                <pre className="rag-preview-pre">
-                  Preview is not implemented for server-backed files yet. Storage path:{" "}
-                  {previewFile.path}
-                </pre>
+                previewLoading ? (
+                  <div className="rag-muted">Loading preview...</div>
+                ) : previewError ? (
+                  <div className="rag-muted" style={{ color: "#991b1b" }}>{previewError}</div>
+                ) : (
+                  <div>
+                    <pre className="rag-preview-pre">{previewContent ?? ""}</pre>
+                    {previewTruncated ? (
+                      <div className="rag-muted" style={{ marginTop: "0.75rem" }}>
+                        Preview truncated to the first 1MB.
+                      </div>
+                    ) : null}
+                  </div>
+                )
               ) : (
                 <div className="rag-muted">
                   This file type is not previewed in the UI right now. Path: <strong>{previewFile.path}</strong>

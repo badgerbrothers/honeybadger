@@ -4,6 +4,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
   type ReactNode,
@@ -13,6 +14,10 @@ import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { projectsApi, ragsApi } from "@/lib/api/endpoints";
 import { ApiError } from "@/lib/api/client";
 import type { ApiProjectRagBinding, ApiRagCollection, ApiRagFile } from "@/lib/api/types";
+import {
+  DEFAULT_MULTIPART_UPLOAD_CONCURRENCY,
+  uploadMultipartFileParts,
+} from "@/lib/browserMultipartUpload";
 
 export type RagStatus = "ready" | "indexing" | "error";
 
@@ -37,6 +42,11 @@ export interface RagFile {
   path: string;
   status: string;
   errorMessage?: string | null;
+  uploadProgress: number;
+  uploadState: "waiting" | "uploading" | "completed" | "failed";
+  indexProgress: number;
+  indexState: "waiting" | "pending" | "running" | "completed" | "failed";
+  isTransient?: boolean;
   raw?: ApiRagFile;
 }
 
@@ -67,6 +77,38 @@ function loadActiveProjectId(): string | null {
   return window.localStorage.getItem(LS_ACTIVE_PROJECT);
 }
 
+function makeClientUploadId() {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return `local-${crypto.randomUUID()}`;
+  }
+  return `local-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function indexStateFromStatus(status: string): RagFile["indexState"] {
+  if (status === "completed") return "completed";
+  if (status === "failed") return "failed";
+  if (status === "running") return "running";
+  if (status === "pending") return "pending";
+  return "waiting";
+}
+
+function indexProgressFromStatus(status: string): number {
+  if (status === "completed") return 100;
+  if (status === "failed") return 72;
+  if (status === "running") return 72;
+  if (status === "pending") return 12;
+  return 0;
+}
+
+function mergeServerAndTransientFiles(serverFiles: RagFile[], transientFiles: RagFile[]): RagFile[] {
+  const serverIds = new Set(serverFiles.map((file) => file.id));
+  const visibleTransient = transientFiles.filter((file) => {
+    if (file.uploadState === "failed") return true;
+    return !serverIds.has(file.id);
+  });
+  return [...visibleTransient, ...serverFiles];
+}
+
 function mapRag(r: ApiRagCollection): Rag {
   return {
     id: r.id,
@@ -91,6 +133,10 @@ function mapRagFile(f: ApiRagFile): RagFile {
     path: f.storage_path,
     status: f.status,
     errorMessage: f.error_message,
+    uploadProgress: 100,
+    uploadState: "completed",
+    indexProgress: indexProgressFromStatus(f.status),
+    indexState: indexStateFromStatus(f.status),
     raw: f,
   };
 }
@@ -119,6 +165,7 @@ export function RagProvider({ children }: { children: ReactNode }) {
   const [activeFileIdByRag, setActiveFileIdByRag] = useState<Record<string, string | null>>(
     () => ({}),
   );
+  const [transientFilesByRag, setTransientFilesByRag] = useState<Record<string, RagFile[]>>(() => ({}));
 
   const ragsQuery = useQuery({
     queryKey: ["rags"],
@@ -137,13 +184,44 @@ export function RagProvider({ children }: { children: ReactNode }) {
     })),
   });
 
-  const ragFilesByRag = useMemo(() => {
+  const serverRagFilesByRag = useMemo(() => {
     const out: Record<string, RagFile[]> = {};
     rags.forEach((r, idx) => {
       out[r.id] = (ragFileQueries[idx]?.data ?? []).map(mapRagFile);
     });
     return out;
   }, [ragFileQueries, rags]);
+
+  useEffect(() => {
+    setTransientFilesByRag((prev) => {
+      let changed = false;
+      const next: Record<string, RagFile[]> = {};
+
+      for (const [ragId, transientFiles] of Object.entries(prev)) {
+        const serverIds = new Set((serverRagFilesByRag[ragId] ?? []).map((file) => file.id));
+        const filtered = transientFiles.filter((file) => {
+          if (file.uploadState === "failed") return true;
+          return !serverIds.has(file.id);
+        });
+        if (filtered.length > 0) next[ragId] = filtered;
+        if (filtered.length !== transientFiles.length) changed = true;
+      }
+
+      return changed ? next : prev;
+    });
+  }, [serverRagFilesByRag]);
+
+  const ragFilesByRag = useMemo(() => {
+    const out: Record<string, RagFile[]> = {};
+    const ragIds = new Set([...Object.keys(serverRagFilesByRag), ...Object.keys(transientFilesByRag)]);
+    ragIds.forEach((ragId) => {
+      out[ragId] = mergeServerAndTransientFiles(
+        serverRagFilesByRag[ragId] ?? [],
+        transientFilesByRag[ragId] ?? [],
+      );
+    });
+    return out;
+  }, [serverRagFilesByRag, transientFilesByRag]);
 
   const ragsWithComputedMeta = useMemo(() => {
     return rags.map((r) => {
@@ -224,11 +302,125 @@ export function RagProvider({ children }: { children: ReactNode }) {
 
   const uploadFiles = useCallback(
     async (ragId: string, files: File[]) => {
-      for (const f of files) {
-        await ragsApi.uploadFile(ragId, f);
-      }
+      const upsertTransientFile = (fileId: string, updater: (current: RagFile | undefined) => RagFile) => {
+        setTransientFilesByRag((prev) => {
+          const currentFiles = prev[ragId] ?? [];
+          const current = currentFiles.find((item) => item.id === fileId);
+          const nextFile = updater(current);
+          const nextFiles = current
+            ? currentFiles.map((item) => (item.id === fileId ? nextFile : item))
+            : [nextFile, ...currentFiles];
+          return { ...prev, [ragId]: nextFiles };
+        });
+      };
+
+      const failures: string[] = [];
+
+      await Promise.all(
+        files.map(async (file) => {
+          const tempId = makeClientUploadId();
+          const now = new Date().toISOString();
+          let initialized: Awaited<ReturnType<typeof ragsApi.createMultipartUpload>> | null = null;
+
+          upsertTransientFile(tempId, () => ({
+            id: tempId,
+            ragId,
+            name: file.name,
+            mimeType: file.type || "application/octet-stream",
+            size: file.size,
+            updatedAt: now,
+            path: "",
+            status: "uploading",
+            errorMessage: null,
+            uploadProgress: 0,
+            uploadState: "uploading",
+            indexProgress: 0,
+            indexState: "waiting",
+            isTransient: true,
+          }));
+
+          try {
+            initialized = await ragsApi.createMultipartUpload(ragId, {
+              file_name: file.name,
+              file_size: file.size,
+              mime_type: file.type || null,
+            });
+            const session = initialized;
+
+            upsertTransientFile(tempId, (current) => ({
+              ...(current as RagFile),
+              path: session.storage_path,
+              updatedAt: new Date().toISOString(),
+            }));
+
+            const completedParts = await uploadMultipartFileParts({
+              file,
+              partSize: session.part_size,
+              parts: session.parts,
+              contentType: file.type || "application/octet-stream",
+              concurrency: DEFAULT_MULTIPART_UPLOAD_CONCURRENCY,
+              onProgress: (loaded, total) => {
+                const progress = total > 0 ? Math.min(100, Math.round((loaded / total) * 100)) : 100;
+                upsertTransientFile(tempId, (current) => ({
+                  ...(current as RagFile),
+                  uploadProgress: progress,
+                  uploadState: "uploading",
+                  updatedAt: new Date().toISOString(),
+                }));
+              },
+            });
+
+            const uploaded = await ragsApi.completeMultipartUpload(ragId, {
+              upload_session_id: session.upload_session_id,
+              parts: completedParts,
+            });
+
+            const mapped = mapRagFile(uploaded);
+            setTransientFilesByRag((prev) => {
+              const currentFiles = prev[ragId] ?? [];
+              const nextFiles: RagFile[] = currentFiles.map((item) => {
+                if (item.id !== tempId) return item;
+                return {
+                  ...mapped,
+                  uploadProgress: 100,
+                  uploadState: "completed",
+                  indexProgress: indexProgressFromStatus(uploaded.status),
+                  indexState: indexStateFromStatus(uploaded.status),
+                  isTransient: true,
+                };
+              });
+              return { ...prev, [ragId]: nextFiles };
+            });
+          } catch (error) {
+            if (initialized?.upload_session_id) {
+              try {
+                await ragsApi.abortMultipartUpload(ragId, initialized.upload_session_id);
+              } catch {
+                // best effort cleanup
+              }
+            }
+            const message = error instanceof Error ? error.message : "Upload failed.";
+            failures.push(`${file.name}: ${message}`);
+            upsertTransientFile(tempId, (current) => {
+              const nextFile: RagFile = {
+                ...(current as RagFile),
+                status: "failed",
+                errorMessage: message,
+                uploadState: "failed",
+                indexState: "waiting",
+                updatedAt: new Date().toISOString(),
+              };
+              return nextFile;
+            });
+          }
+        }),
+      );
+
       await qc.invalidateQueries({ queryKey: ["ragFiles", ragId] });
       await qc.invalidateQueries({ queryKey: ["rags"] });
+      if (failures.length > 0) {
+        throw new Error(failures.join("\n"));
+      }
     },
     [qc],
   );

@@ -121,6 +121,30 @@ async def init_db():
                 await conn.execute(
                     text(
                         """
+                        ALTER TABLE IF EXISTS rag_collection_files
+                        ALTER COLUMN file_size TYPE BIGINT
+                        """
+                    )
+                )
+                await conn.execute(
+                    text(
+                        """
+                        ALTER TABLE IF EXISTS rag_upload_sessions
+                        ALTER COLUMN file_size TYPE BIGINT
+                        """
+                    )
+                )
+                await conn.execute(
+                    text(
+                        """
+                        ALTER TABLE IF EXISTS project_nodes
+                        ALTER COLUMN size TYPE BIGINT
+                        """
+                    )
+                )
+                await conn.execute(
+                    text(
+                        """
                         ALTER TABLE IF EXISTS document_chunk
                         ALTER COLUMN project_id DROP NOT NULL
                         """

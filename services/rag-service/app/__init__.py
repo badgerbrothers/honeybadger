@@ -7,10 +7,13 @@ from pathlib import Path
 
 
 def _ensure_repo_root_on_path() -> None:
-    repo_root = Path(__file__).resolve().parents[3]
-    repo_root_str = str(repo_root)
-    if repo_root_str not in sys.path:
-        sys.path.append(repo_root_str)
+    current = Path(__file__).resolve()
+    for candidate in current.parents:
+        if (candidate / "shared").exists():
+            candidate_str = str(candidate)
+            if candidate_str not in sys.path:
+                sys.path.append(candidate_str)
+            return
 
 
 _ensure_repo_root_on_path()

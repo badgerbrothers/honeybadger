@@ -9,6 +9,7 @@ from .document_chunk import DocumentChunk
 from .document_index_job import DocumentIndexJob, DocumentIndexStatus
 from .rag_collection import RagCollection
 from .rag_collection_file import RagCollectionFile, RagFileStatus
+from .rag_upload_session import RagUploadSession, RagUploadSessionStatus
 
 __all__ = [
     "Base",
@@ -31,4 +32,6 @@ __all__ = [
     "RagCollection",
     "RagCollectionFile",
     "RagFileStatus",
+    "RagUploadSession",
+    "RagUploadSessionStatus",
 ]
