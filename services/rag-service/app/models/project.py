@@ -1,6 +1,6 @@
 """Project and ProjectNode models."""
 from __future__ import annotations
-from sqlalchemy import String, Integer, ForeignKey, Text, Enum as SQLEnum
+from sqlalchemy import BigInteger, String, Integer, ForeignKey, Text, Enum as SQLEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 import uuid
 import enum
@@ -34,7 +34,7 @@ class ProjectNode(Base, TimestampMixin):
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     path: Mapped[str] = mapped_column(String(1024), nullable=False)
     node_type: Mapped[NodeType] = mapped_column(SQLEnum(NodeType), nullable=False)
-    size: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    size: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
 
     # Relationships
     project: Mapped["Project"] = relationship(back_populates="nodes")

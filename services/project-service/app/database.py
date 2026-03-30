@@ -88,6 +88,22 @@ async def init_db():
                 await conn.execute(
                     text(
                         """
+                        ALTER TABLE IF EXISTS project_upload_sessions
+                        ALTER COLUMN file_size TYPE BIGINT
+                        """
+                    )
+                )
+                await conn.execute(
+                    text(
+                        """
+                        ALTER TABLE IF EXISTS project_nodes
+                        ALTER COLUMN size TYPE BIGINT
+                        """
+                    )
+                )
+                await conn.execute(
+                    text(
+                        """
                         ALTER TABLE IF EXISTS sandbox_sessions
                         ALTER COLUMN task_run_id DROP NOT NULL
                         """

@@ -64,3 +64,45 @@ class ProjectFileUploadResponse(BaseModel):
     size: int
     mime_type: str | None
     created_at: datetime
+
+
+class ProjectMultipartUploadPartUrl(BaseModel):
+    """Signed upload URL for one project multipart part."""
+
+    part_number: int
+    url: str
+
+
+class ProjectMultipartUploadCreateRequest(BaseModel):
+    """Initialize a direct multipart upload for a project file."""
+
+    file_name: str = Field(..., min_length=1, max_length=255)
+    file_size: int = Field(..., gt=0)
+    mime_type: str | None = Field(default=None, max_length=255)
+
+
+class ProjectMultipartUploadCreateResponse(BaseModel):
+    """Describe the multipart session returned to the browser."""
+
+    upload_session_id: uuid.UUID
+    file_id: uuid.UUID
+    path: str
+    upload_id: str
+    part_size: int
+    part_count: int
+    expires_in_seconds: int
+    parts: list[ProjectMultipartUploadPartUrl]
+
+
+class ProjectMultipartUploadCompletePart(BaseModel):
+    """One completed multipart project part."""
+
+    part_number: int = Field(..., ge=1)
+    etag: str = Field(..., min_length=1)
+
+
+class ProjectMultipartUploadCompleteRequest(BaseModel):
+    """Finalize a project multipart upload."""
+
+    upload_session_id: uuid.UUID
+    parts: list[ProjectMultipartUploadCompletePart] = Field(..., min_length=1)

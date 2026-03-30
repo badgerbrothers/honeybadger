@@ -1,5 +1,7 @@
 import { useRef, type KeyboardEvent, type MutableRefObject } from "react";
 
+import { KNOWLEDGE_FILE_ACCEPT } from "@/lib/fileUpload";
+
 interface ConversationComposerProps {
   empty: boolean;
   placeholder: string;
@@ -72,6 +74,8 @@ export function ConversationComposer({
             <input
               ref={uploadInputRef}
               type="file"
+              multiple
+              accept={KNOWLEDGE_FILE_ACCEPT}
               style={{ display: "none" }}
               onChange={async (event) => {
                 const files = Array.from(event.currentTarget.files ?? []);

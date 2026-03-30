@@ -47,11 +47,20 @@ class Settings(BaseSettings):
         default="badgers-artifacts",
         validation_alias=AliasChoices("S3_BUCKET", "MINIO_BUCKET"),
     )
+    s3_public_endpoint: str = Field(
+        default="127.0.0.1:9000",
+        validation_alias=AliasChoices("S3_PUBLIC_ENDPOINT", "MINIO_PUBLIC_ENDPOINT"),
+    )
     s3_secure: bool = Field(
         default=False,
         validation_alias=AliasChoices("S3_SECURE", "MINIO_SECURE"),
     )
-    storage_service_url: str = "http://localhost:8005"
+    s3_public_secure: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("S3_PUBLIC_SECURE", "MINIO_PUBLIC_SECURE"),
+    )
+    s3_multipart_part_size: int = 10 * 1024 * 1024
+    project_multipart_url_expiry_seconds: int = 3600
     rag_service_url: str = "http://localhost:8003"
 
     @property

@@ -11,6 +11,14 @@ import { ConversationComposer } from "@/features/conversations/ConversationCompo
 import { ConversationExecutionPanel } from "@/features/conversations/ConversationExecutionPanel";
 import { useWorkspace } from "@/features/workspace/WorkspaceContext";
 import { connectRunStream, type RunEvent } from "@/lib/ws/runStream";
+import {
+  describeProjectUploadError,
+  validateProjectKnowledgeFiles,
+} from "@/lib/fileUpload";
+import {
+  DEFAULT_MULTIPART_UPLOAD_CONCURRENCY,
+  uploadMultipartFileParts,
+} from "@/lib/browserMultipartUpload";
 
 const suggestions = [
   { color: "#ea580c", label: "Summarize my recent tasks" },
@@ -254,14 +262,49 @@ export default function ConversationPage() {
 
   const handleUploadFiles = async (files: File[]) => {
     if (!activeProjectId || files.length === 0) return;
+    const validationError = validateProjectKnowledgeFiles(files);
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
     setUploading(true);
     setError(null);
     try {
-      for (const file of files) {
-        await projectsApi.uploadFile(activeProjectId, file);
-      }
+      await Promise.all(
+        files.map(async (file) => {
+          let initialized: Awaited<ReturnType<typeof projectsApi.createMultipartUpload>> | null = null;
+          try {
+            initialized = await projectsApi.createMultipartUpload(activeProjectId, {
+              file_name: file.name,
+              file_size: file.size,
+              mime_type: file.type || null,
+            });
+            const session = initialized;
+            const parts = await uploadMultipartFileParts({
+              file,
+              partSize: session.part_size,
+              parts: session.parts,
+              contentType: file.type || "application/octet-stream",
+              concurrency: DEFAULT_MULTIPART_UPLOAD_CONCURRENCY,
+            });
+            await projectsApi.completeMultipartUpload(activeProjectId, {
+              upload_session_id: session.upload_session_id,
+              parts,
+            });
+          } catch (error) {
+            if (initialized?.upload_session_id) {
+              try {
+                await projectsApi.abortMultipartUpload(activeProjectId, initialized.upload_session_id);
+              } catch {
+                // best effort cleanup
+              }
+            }
+            throw error;
+          }
+        }),
+      );
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Upload failed");
+      setError(describeProjectUploadError(err));
     } finally {
       setUploading(false);
     }
@@ -298,6 +341,9 @@ export default function ConversationPage() {
   return (
     <main className="main-content conversation-page">
       <div className="top-bar">
+        <Link className="top-text-link" href="/settings">
+          Settings
+        </Link>
         <Link className="top-icon-link" href="/rag" title="RAG" aria-label="RAG">
           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 3l8 4-8 4-8-4 8-4zM4 13l8 4 8-4M4 17l8 4 8-4" />

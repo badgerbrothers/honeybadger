@@ -167,6 +167,14 @@ async def init_db():
                 await conn.execute(
                     text(
                         """
+                        ALTER TABLE IF EXISTS project_nodes
+                        ALTER COLUMN size TYPE BIGINT
+                        """
+                    )
+                )
+                await conn.execute(
+                    text(
+                        """
                         ALTER TABLE IF EXISTS document_chunk
                         ADD COLUMN IF NOT EXISTS rag_collection_id UUID
                         """
