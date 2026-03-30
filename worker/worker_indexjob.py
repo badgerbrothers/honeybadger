@@ -10,6 +10,7 @@ import structlog
 from config import settings
 from main import (
     async_session_maker,
+    claim_document_index_job_by_id,
     configure_logging,
     engine,
     execute_document_index_job,
@@ -35,6 +36,10 @@ async def handle_index_job(payload: dict):
     job_id = uuid.UUID(job_value)
     logger.info("index_job_received", job_id=str(job_id))
     async with async_session_maker() as session:
+        claimed_job = await claim_document_index_job_by_id(session, job_id)
+        if claimed_job is None:
+            logger.info("index_job_skipped", job_id=str(job_id))
+            return
         await execute_document_index_job(job_id, session)
 
 
@@ -48,7 +53,7 @@ async def main():
     signal.signal(signal.SIGINT, signal_handler)
 
     logger.info("indexjob_worker_starting")
-    client = RabbitMQClient("index-jobs")
+    client = RabbitMQClient("index-jobs", requeue_on_error=False)
     await client.connect()
     consume_task: asyncio.Task | None = None
 

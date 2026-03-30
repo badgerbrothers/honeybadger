@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator
 
 from .base import BaseParser
 from .exceptions import FileReadError, ParseError
@@ -15,17 +15,12 @@ class TxtParser(BaseParser):
         """Parse text file with encoding detection."""
         self._validate_file(file_path)
 
-        encoding_used = "utf-8"
-
         try:
-            text = file_path.read_text(encoding="utf-8")
-        except UnicodeDecodeError:
-            try:
-                text = file_path.read_text(encoding="latin-1")
-                encoding_used = "latin-1"
-            except Exception as exc:
-                raise ParseError(f"Failed to decode text file: {exc}") from exc
+            encoding_used = self._detect_encoding(file_path)
+            text = file_path.read_text(encoding=encoding_used)
         except Exception as exc:
+            if isinstance(exc, ParseError):
+                raise
             raise FileReadError(f"Failed to read file: {exc}") from exc
 
         line_count = len(text.splitlines())
@@ -43,3 +38,33 @@ class TxtParser(BaseParser):
     def supported_extensions(self) -> list[str]:
         """Return supported file extensions."""
         return [".txt"]
+
+    def supports_incremental(self) -> bool:
+        return True
+
+    def iter_text_segments(self, file_path: Path, *, segment_chars: int = 16 * 1024) -> Iterator[str]:
+        """Yield bounded text segments for large-file indexing."""
+        self._validate_file(file_path)
+        encoding_used = self._detect_encoding(file_path)
+        try:
+            with file_path.open("r", encoding=encoding_used) as handle:
+                while True:
+                    segment = handle.read(segment_chars)
+                    if not segment:
+                        break
+                    yield segment
+        except Exception as exc:
+            raise FileReadError(f"Failed to read file: {exc}") from exc
+
+    def _detect_encoding(self, file_path: Path) -> str:
+        try:
+            with file_path.open("r", encoding="utf-8") as handle:
+                handle.read(4096)
+            return "utf-8"
+        except UnicodeDecodeError:
+            try:
+                with file_path.open("r", encoding="latin-1") as handle:
+                    handle.read(4096)
+                return "latin-1"
+            except Exception as exc:
+                raise ParseError(f"Failed to decode text file: {exc}") from exc

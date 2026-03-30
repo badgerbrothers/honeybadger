@@ -42,3 +42,22 @@ def test_supported_extensions():
     extensions = parser.supported_extensions()
 
     assert extensions == [".txt"]
+
+
+def test_iter_text_segments_streams_file(tmp_path: Path):
+    """Incremental text parsing should return bounded segments."""
+    parser = TxtParser()
+    path = tmp_path / "large.txt"
+    path.write_text("alpha\nbeta\ngamma\n", encoding="utf-8")
+
+    segments = list(parser.iter_text_segments(path, segment_chars=5))
+
+    assert len(segments) >= 2
+    assert "".join(segments) == "alpha\nbeta\ngamma\n"
+
+
+def test_supports_incremental():
+    """Txt parser should advertise incremental support."""
+    parser = TxtParser()
+
+    assert parser.supports_incremental() is True

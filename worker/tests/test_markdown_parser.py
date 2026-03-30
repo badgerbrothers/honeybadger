@@ -53,3 +53,26 @@ def test_supported_extensions():
     extensions = parser.supported_extensions()
 
     assert extensions == [".md", ".markdown"]
+
+
+def test_iter_text_segments_normalizes_markdown(tmp_path: Path):
+    """Incremental markdown mode should emit text-like normalized segments."""
+    parser = MarkdownParser()
+    path = tmp_path / "sample.md"
+    path.write_text("# Title\n- item one\n[link](https://example.com)\n", encoding="utf-8")
+
+    segments = list(parser.iter_text_segments(path, segment_chars=8))
+
+    assert len(segments) >= 1
+    normalized = "".join(segments)
+    assert "Title" in normalized
+    assert "item one" in normalized
+    assert "link" in normalized
+    assert "https://example.com" not in normalized
+
+
+def test_markdown_supports_incremental():
+    """Markdown parser should advertise incremental support."""
+    parser = MarkdownParser()
+
+    assert parser.supports_incremental() is True

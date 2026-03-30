@@ -450,11 +450,10 @@ async def execute_document_index_job(job_id: uuid.UUID, session: AsyncSession):
         from rag.indexer import DocumentIndexer
 
         failed_step = "download_file"
-        file_bytes = await storage_client.download_file(job.storage_path)
         workspace = Path("worker_tmp") / "rag"
         workspace.mkdir(parents=True, exist_ok=True)
         local_path = workspace / f"{job.id}_{job.file_name}"
-        local_path.write_bytes(file_bytes)
+        await storage_client.download_to_path(job.storage_path, local_path)
 
         indexer = DocumentIndexer(
             EmbeddingService(

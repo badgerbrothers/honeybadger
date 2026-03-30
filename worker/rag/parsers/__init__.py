@@ -2,7 +2,9 @@
 
 from shared.rag.parsers import (
     BaseParser,
+    CsvParser,
     FileReadError,
+    JsonParser,
     MarkdownParser,
     ParseError,
     ParserError,
@@ -16,6 +18,8 @@ __all__ = [
     "TxtParser",
     "MarkdownParser",
     "PdfParser",
+    "JsonParser",
+    "CsvParser",
     "ParserError",
     "UnsupportedFormatError",
     "ParseError",

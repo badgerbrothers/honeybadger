@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator
 
 import markdown
 
@@ -47,3 +47,45 @@ class MarkdownParser(BaseParser):
     def supported_extensions(self) -> list[str]:
         """Return supported file extensions."""
         return [".md", ".markdown"]
+
+    def supports_incremental(self) -> bool:
+        return True
+
+    def iter_text_segments(self, file_path: Path, *, segment_chars: int = 16 * 1024) -> Iterator[str]:
+        """Yield normalized markdown text in bounded segments."""
+        self._validate_file(file_path)
+
+        try:
+            with file_path.open("r", encoding="utf-8") as handle:
+                buffer: list[str] = []
+                buffer_len = 0
+                for raw_line in handle:
+                    normalized = self._normalize_markdown_line(raw_line)
+                    if not normalized:
+                        continue
+                    buffer.append(normalized)
+                    buffer_len += len(normalized)
+                    if buffer_len >= segment_chars:
+                        yield "".join(buffer)
+                        buffer = []
+                        buffer_len = 0
+
+                if buffer:
+                    yield "".join(buffer)
+        except Exception as exc:
+            raise FileReadError(f"Failed to read file: {exc}") from exc
+
+    def _normalize_markdown_line(self, line: str) -> str:
+        text = line.rstrip("\n")
+        text = re.sub(r"^#{1,6}\s*", "", text)
+        text = re.sub(r"^>\s*", "", text)
+        text = re.sub(r"^\s*[-*+]\s+", "", text)
+        text = re.sub(r"^\s*\d+\.\s+", "", text)
+        text = re.sub(r"!\[([^\]]*)\]\([^)]+\)", r"\1", text)
+        text = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", text)
+        text = re.sub(r"`([^`]*)`", r"\1", text)
+        text = re.sub(r"[*_~#>-]", " ", text)
+        text = re.sub(r"\s+", " ", text).strip()
+        if not text:
+            return ""
+        return text + "\n"

@@ -37,5 +37,7 @@ class DocumentIndexJob(Base, TimestampMixin):
     )
     started_at: Mapped[datetime | None] = mapped_column(nullable=True)
     completed_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    error_code: Mapped[str | None] = mapped_column(String(100), nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    failed_step: Mapped[str | None] = mapped_column(String(100), nullable=True)
     chunk_count: Mapped[int | None] = mapped_column(Integer, nullable=True)

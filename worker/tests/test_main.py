@@ -507,13 +507,14 @@ async def test_execute_document_index_job_success():
 
     with patch.dict(sys.modules, {"rag.indexer": fake_indexer_module, "rag.embeddings": fake_embeddings_module}), \
          patch("worker.main.settings.openai_api_key", "test-key"), \
-         patch("worker.main.storage_client.download_file", new=AsyncMock(return_value=b"hello")):
+         patch("worker.main.storage_client.download_to_path", new=AsyncMock()) as mock_download:
         await execute_document_index_job(job_id, mock_session)
 
     assert mock_job.status == DocumentIndexStatus.COMPLETED
     assert mock_job.chunk_count == 7
     assert mock_job.completed_at is not None
     assert mock_session.commit.await_count >= 1
+    mock_download.assert_awaited_once()
 
 
 @pytest.mark.asyncio
@@ -538,7 +539,7 @@ async def test_execute_document_index_job_fails_without_openai_key():
     mock_session.commit = AsyncMock()
 
     with patch("worker.main.settings.openai_api_key", None), \
-         patch("worker.main.storage_client.download_file", new=AsyncMock()) as mock_download:
+         patch("worker.main.storage_client.download_to_path", new=AsyncMock()) as mock_download:
         await execute_document_index_job(job_id, mock_session)
 
     assert mock_job.status == DocumentIndexStatus.FAILED

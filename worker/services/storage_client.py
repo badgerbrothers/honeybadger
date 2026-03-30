@@ -1,6 +1,8 @@
 """Object storage helper for worker-side downloads."""
 from __future__ import annotations
 
+import asyncio
+from pathlib import Path
 from urllib.parse import urlparse
 
 from config import settings
@@ -49,6 +51,44 @@ class StorageClient:
         finally:
             response.close()
             response.release_conn()
+
+    def _blocking_download_to_path(
+        self,
+        object_name: str,
+        destination_path: Path,
+        *,
+        chunk_size: int = 1024 * 1024,
+    ) -> Path:
+        """Download an object to a local path without buffering the whole file."""
+        destination_path.parent.mkdir(parents=True, exist_ok=True)
+        response = self.client.get_object(settings.s3_bucket, object_name)
+        try:
+            with destination_path.open("wb") as handle:
+                while True:
+                    chunk = response.read(chunk_size)
+                    if not chunk:
+                        break
+                    handle.write(chunk)
+        finally:
+            response.close()
+            response.release_conn()
+        return destination_path
+
+    async def download_to_path(
+        self,
+        object_name: str,
+        destination_path: str | Path,
+        *,
+        chunk_size: int = 1024 * 1024,
+    ) -> Path:
+        """Download an object directly to disk via a worker thread."""
+        path = Path(destination_path)
+        return await asyncio.to_thread(
+            self._blocking_download_to_path,
+            object_name,
+            path,
+            chunk_size=chunk_size,
+        )
 
 
 storage_client = StorageClient()

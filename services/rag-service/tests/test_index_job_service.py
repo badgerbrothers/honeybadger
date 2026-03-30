@@ -90,7 +90,9 @@ async def test_schedule_indexing_marks_job_failed_when_publish_fails(db_session:
         jobs = result.scalars().all()
         assert len(jobs) == 1
         assert jobs[0].status == DocumentIndexStatus.FAILED
+        assert jobs[0].error_code == "queue_publish_failed"
         assert jobs[0].error_message == "queue_publish_failed"
+        assert jobs[0].failed_step == "publish"
     finally:
         index_job_service_module.queue_service.publish_index_job = original_publish
 

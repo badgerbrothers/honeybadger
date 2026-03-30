@@ -50,7 +50,9 @@ class RagService:
                 exc_info=True,
             )
             job.status = DocumentIndexStatus.FAILED
+            job.error_code = "queue_publish_failed"
             job.error_message = "queue_publish_failed"
+            job.failed_step = "publish"
             await db.commit()
             await db.refresh(job)
             raise

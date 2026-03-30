@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import Any, Mapping
 
-from .chunker import chunk_text
+from .chunker import chunk_text, iter_chunk_text_segments
+from .parsers import UnsupportedFormatError
 from .semantic_chunker import SemanticChunker
 
 DEFAULT_BATCH_SIZE = 2048
@@ -33,13 +35,22 @@ class DocumentIndexingCore:
         self.overlap = overlap
         self.semantic_chunker_cls = semantic_chunker_cls
 
-    async def parse_document(self, file_path: str) -> str:
-        """Parse a document and return extracted text."""
+    def get_parser(self, file_path: str):
+        """Return the parser for the provided file path."""
         ext = Path(file_path).suffix.lower()
         parser = self.parsers.get(ext)
         if parser is None:
-            raise ValueError(f"Unsupported file type: {ext}")
+            raise UnsupportedFormatError(f"Unsupported file type: {ext}")
+        return parser
 
+    def supports_incremental_processing(self, file_path: str) -> bool:
+        """Return whether the file can be processed incrementally."""
+        parser = self.get_parser(file_path)
+        return bool(parser.supports_incremental())
+
+    async def parse_document(self, file_path: str) -> str:
+        """Parse a document and return extracted text."""
+        parser = self.get_parser(file_path)
         result = parser.parse(Path(file_path))
         return result["text"]
 
@@ -52,6 +63,47 @@ class DocumentIndexingCore:
             )
             return semantic_chunker.chunk_text(text)
         return chunk_text(text, chunk_size=self.chunk_size, overlap=self.overlap)
+
+    async def iter_document_chunks(
+        self,
+        file_path: str,
+        *,
+        use_semantic: bool = True,
+    ) -> AsyncIterator[dict[str, Any]]:
+        """Yield chunks for a document, using incremental parsing when available."""
+        parser = self.get_parser(file_path)
+        if use_semantic or not parser.supports_incremental():
+            text = await self.parse_document(file_path)
+            for chunk in await self.chunk_document(text, use_semantic=use_semantic):
+                yield chunk
+            return
+
+        for chunk in iter_chunk_text_segments(
+            parser.iter_text_segments(Path(file_path)),
+            chunk_size=self.chunk_size,
+            overlap=self.overlap,
+        ):
+            yield chunk
+
+    async def iter_document_chunk_batches(
+        self,
+        file_path: str,
+        *,
+        use_semantic: bool = True,
+        batch_size: int | None = None,
+    ) -> AsyncIterator[list[dict[str, Any]]]:
+        """Yield document chunks in bounded batches."""
+        effective_batch_size = batch_size or self.batch_size
+        batch: list[dict[str, Any]] = []
+
+        async for chunk in self.iter_document_chunks(file_path, use_semantic=use_semantic):
+            batch.append(chunk)
+            if len(batch) >= effective_batch_size:
+                yield batch
+                batch = []
+
+        if batch:
+            yield batch
 
     async def generate_embeddings(self, chunks: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Attach embeddings to chunk payloads in batches."""
@@ -81,8 +133,7 @@ class DocumentIndexingCore:
         use_semantic: bool = True,
     ) -> list[dict[str, Any]]:
         """Run parse, chunk, and embedding generation for a document."""
-        text = await self.parse_document(file_path)
-        chunks = await self.chunk_document(text, use_semantic=use_semantic)
+        chunks = [chunk async for chunk in self.iter_document_chunks(file_path, use_semantic=use_semantic)]
         return await self.generate_embeddings(chunks)
 
     @staticmethod
