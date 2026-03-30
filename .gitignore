@@ -26,6 +26,7 @@ htmlcov/
 out/
 *.log
 npm-debug.log*
+*.tsbuildinfo
 
 # Environment (additional)
 .env.local
@@ -45,3 +46,9 @@ Thumbs.db
 # Java / Maven (auth-service build outputs + local test jars)
 services/auth-service/target/
 temp_auth_app*.jar
+
+# Local large-file experiments and scratch data
+generated_10gb.md
+large_1gb.md
+temp/
+docs/*.docx
