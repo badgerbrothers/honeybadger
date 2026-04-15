@@ -1,101 +1,109 @@
 ---
-description: Execute an implementation plan
+description: 执行实施计划
 argument-hint: [path-to-plan]
 ---
 
-# Execute: Implement from Plan
+# 执行：按计划实施
 
-## Plan to Execute
+## 要执行的计划
 
-Read plan file: `$ARGUMENTS`
+读取计划文件：`$ARGUMENTS`
 
-## Execution Instructions
+## 执行说明
 
-### 1. Read and Understand
+### 1. 阅读并理解
 
-- Read the ENTIRE plan carefully
-- Understand all tasks and their dependencies
-- Note the validation commands to run
-- Review the testing strategy
+- 仔细阅读整个计划
+- 理解所有任务及其依赖关系
+- 记录需要执行的验证命令
+- 审查测试策略
 
-### 2. Execute Tasks in Order
+### 2. 按顺序执行任务
 
-For EACH task in "Step by Step Tasks":
+对“分步任务”中的每一个任务：
 
-#### a. Navigate to the task
-- Identify the file and action required
-- Read existing related files if modifying
+#### a. 进入任务上下文
 
-#### b. Implement the task
-- Follow the detailed specifications exactly
-- Maintain consistency with existing code patterns
-- Include proper type hints and documentation
-- Add structured logging where appropriate
+- 确定目标文件和所需操作
+- 如果需要修改，先阅读现有相关文件
 
-#### c. Verify as you go
-- After each file change, check syntax
-- Ensure imports are correct
-- Verify types are properly defined
+#### b. 实现任务
 
-### 3. Implement Testing Strategy
+- 严格按照详细规格执行
+- 保持与现有代码模式一致
+- 补充合适的类型标注与文档
+- 在适当位置添加结构化日志
 
-After completing implementation tasks:
+#### c. 边做边验证
 
-- Create all test files specified in the plan
-- Implement all test cases mentioned
-- Follow the testing approach outlined
-- Ensure tests cover edge cases
+- 每次修改文件后检查语法
+- 确保导入正确
+- 确认类型定义完整且正确
 
-### 4. Run Validation Commands
+### 3. 落实测试策略
 
-Execute ALL validation commands from the plan in order:
+在完成实现任务后：
+
+- 创建计划中指定的全部测试文件
+- 实现提到的全部测试用例
+- 按计划中的测试方案执行
+- 确保测试覆盖边界情况
+
+### 4. 运行验证命令
+
+按顺序执行计划中的全部验证命令：
 
 ```bash
-# Run each command exactly as specified in plan
+# 严格按计划中的写法执行每条命令
 ```
 
-If any command fails:
-- Fix the issue
-- Re-run the command
-- Continue only when it passes
+如果任一命令失败：
 
-### 5. Final Verification
+- 修复问题
+- 重新运行命令
+- 只有通过后才能继续
 
-Before completing:
+### 5. 最终核验
 
-- ✅ All tasks from plan completed
-- ✅ All tests created and passing
-- ✅ All validation commands pass
-- ✅ Code follows project conventions
-- ✅ Documentation added/updated as needed
+完成前确认：
 
-## Output Report
+- [ ] 计划中的所有任务均已完成
+- [ ] 所有测试都已创建并通过
+- [ ] 所有验证命令均已通过
+- [ ] 代码符合项目约定
+- [ ] 文档已按需要新增或更新
 
-Provide summary:
+## 输出报告
 
-### Completed Tasks
-- List of all tasks completed
-- Files created (with paths)
-- Files modified (with paths)
+请提供摘要：
 
-### Tests Added
-- Test files created
-- Test cases implemented
-- Test results
+### 已完成任务
 
-### Validation Results
+- 列出所有已完成任务
+- 已创建文件（含路径）
+- 已修改文件（含路径）
+
+### 新增测试
+
+- 已创建的测试文件
+- 已实现的测试用例
+- 测试结果
+
+### 验证结果
+
 ```bash
-# Output from each validation command
+# 每条验证命令的输出
 ```
 
-### Ready for Commit
-- Confirm all changes are complete
-- Confirm all validations pass
-- Ready for `/commit` command
+### 可提交状态
 
-## Notes
+- 确认所有更改均已完成
+- 确认所有验证均已通过
+- 已准备好执行 `/commit` 命令
 
-- If you encounter issues not addressed in the plan, document them
-- If you need to deviate from the plan, explain why
-- If tests fail, fix implementation until they pass
-- Don't skip validation steps
+## 备注
+
+- 如果遇到计划中未覆盖的问题，记录下来
+- 如果需要偏离计划，说明原因
+- 如果测试失败，持续修复直到通过
+- 不要跳过验证步骤

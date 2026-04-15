@@ -1,433 +1,433 @@
 ---
-description: "Create comprehensive feature plan with deep codebase analysis and research"
+description: "通过深入的代码库分析与研究创建完整的功能规划"
 ---
 
-# Plan a new task
+# 规划新任务
 
-## Feature: $ARGUMENTS
+## 功能：$ARGUMENTS
 
-## Mission
+## 任务目标
 
-Transform a feature request into a **comprehensive implementation plan** through systematic codebase analysis, external research, and strategic planning.
+通过系统性的代码库分析、外部研究与策略规划，将一个功能需求转化为**完整的实施计划**。
 
-**Core Principle**: We do NOT write code in this phase. Our goal is to create a context-rich implementation plan that enables one-pass implementation success for ai agents.
+**核心原则**：在这个阶段我们不编写代码。目标是产出一份上下文充分的实施计划，使 AI 代理可以一次性高质量完成实现。
 
-**Key Philosophy**: Context is King. The plan must contain ALL information needed for implementation - patterns, mandatory reading, documentation, validation commands - so the execution agent succeeds on the first attempt.
+**关键理念**：上下文就是一切。计划必须包含实现所需的全部信息，包括模式、必读文件、文档、验证命令等，确保执行代理第一次就能成功。
 
-## Planning Process
+## 规划流程
 
-### Phase 1: Feature Understanding
+### 阶段 1：功能理解
 
-**Deep Feature Analysis:**
+**深入分析功能：**
 
-- Extract the core problem being solved
-- Identify user value and business impact
-- Determine feature type: New Capability/Enhancement/Refactor/Bug Fix
-- Assess complexity: Low/Medium/High
-- Map affected systems and components
+- 提炼要解决的核心问题
+- 识别用户价值和业务影响
+- 判断功能类型：新能力 / 增强 / 重构 / 缺陷修复
+- 评估复杂度：低 / 中 / 高
+- 梳理会受影响的系统与组件
 
-**Create User Story Format Or Refine If Story Was Provided By The User:**
+**创建用户故事，或在用户已提供故事时进行完善：**
 
+```text
+作为 <用户类型>
+我想要 <动作/目标>
+以便 <收益/价值>
 ```
-As a <type of user>
-I want to <action/goal>
-So that <benefit/value>
-```
 
-### Phase 2: Codebase Intelligence Gathering
+### 阶段 2：收集代码库情报
 
-**Use specialized agents and parallel analysis:**
+**使用专门代理并行分析：**
 
-**1. Project Structure Analysis**
+**1. 项目结构分析**
 
-- Detect primary language(s), frameworks, and runtime versions
-- Map directory structure and architectural patterns
-- Identify service/component boundaries and integration points
-- Locate configuration files (pyproject.toml, package.json, etc.)
-- Find environment setup and build processes
+- 识别主要语言、框架与运行时版本
+- 梳理目录结构与架构模式
+- 确定服务 / 组件边界与集成点
+- 定位配置文件（`pyproject.toml`、`package.json` 等）
+- 找出环境初始化与构建流程
 
-**2. Pattern Recognition** (Use specialized subagents when beneficial)
+**2. 模式识别**（有利时使用专门子代理）
 
-- Search for similar implementations in codebase
-- Identify coding conventions:
-  - Naming patterns (CamelCase, snake_case, kebab-case)
-  - File organization and module structure
-  - Error handling approaches
-  - Logging patterns and standards
-- Extract common patterns for the feature's domain
-- Document anti-patterns to avoid
-- Check CLAUDE.md for project-specific rules and conventions
+- 在代码库中搜索类似实现
+- 识别编码约定：
+  - 命名模式（CamelCase、snake_case、kebab-case）
+  - 文件组织方式与模块结构
+  - 错误处理方案
+  - 日志模式与规范
+- 提炼该功能领域的通用模式
+- 记录需要避免的反模式
+- 检查 `CLAUDE.md` 中的项目专属规则与约定
 
-**3. Dependency Analysis**
+**3. 依赖分析**
 
-- Catalog external libraries relevant to feature
-- Understand how libraries are integrated (check imports, configs)
-- Find relevant documentation in docs/, ai_docs/, .agents/reference or ai-wiki if available
-- Note library versions and compatibility requirements
+- 列出与该功能相关的外部库
+- 理解这些库是如何接入的（检查导入、配置）
+- 在 `docs/`、`ai_docs/`、`.agents/reference` 或 `ai-wiki` 中查找相关文档（如果存在）
+- 记录库版本与兼容性要求
 
-**4. Testing Patterns**
+**4. 测试模式**
 
-- Identify test framework and structure (pytest, jest, etc.)
-- Find similar test examples for reference
-- Understand test organization (unit vs integration)
-- Note coverage requirements and testing standards
+- 识别测试框架与组织结构（`pytest`、`jest` 等）
+- 查找类似测试示例作为参考
+- 理解测试组织方式（单元测试 vs 集成测试）
+- 记录覆盖率要求与测试标准
 
-**5. Integration Points**
+**5. 集成点**
 
-- Identify existing files that need updates
-- Determine new files that need creation and their locations
-- Map router/API registration patterns
-- Understand database/model patterns if applicable
-- Identify authentication/authorization patterns if relevant
+- 找出需要更新的已有文件
+- 确定需要创建的新文件及其位置
+- 梳理路由 / API 注册模式
+- 如适用，理解数据库 / 模型模式
+- 如相关，识别认证 / 授权模式
 
-**Clarify Ambiguities:**
+**澄清不明确之处：**
 
-- If requirements are unclear at this point, ask the user to clarify before you continue
-- Get specific implementation preferences (libraries, approaches, patterns)
-- Resolve architectural decisions before proceeding
+- 如果此时需求仍不清晰，继续前先让用户澄清
+- 获取明确的实现偏好（库、方案、模式）
+- 在继续之前先解决架构层决策
 
-### Phase 3: External Research & Documentation
+### 阶段 3：外部研究与文档收集
 
-**Use specialized subagents when beneficial for external research:**
+**有利时使用专门子代理进行外部研究：**
 
-**Documentation Gathering:**
+**收集文档：**
 
-- Research latest library versions and best practices
-- Find official documentation with specific section anchors
-- Locate implementation examples and tutorials
-- Identify common gotchas and known issues
-- Check for breaking changes and migration guides
+- 研究最新库版本与最佳实践
+- 查找带具体锚点的官方文档
+- 定位实现示例与教程
+- 识别常见陷阱与已知问题
+- 检查破坏性变更与迁移指南
 
-**Technology Trends:**
+**技术趋势：**
 
-- Research current best practices for the technology stack
-- Find relevant blog posts, guides, or case studies
-- Identify performance optimization patterns
-- Document security considerations
+- 研究当前技术栈的最佳实践
+- 查找相关博客、指南或案例研究
+- 识别性能优化模式
+- 记录安全注意事项
 
-**Compile Research References:**
+**整理研究参考资料：**
 
 ```markdown
-## Relevant Documentation
+## 相关文档
 
-- [Library Official Docs](https://example.com/docs#section)
-  - Specific feature implementation guide
-  - Why: Needed for X functionality
-- [Framework Guide](https://example.com/guide#integration)
-  - Integration patterns section
-  - Why: Shows how to connect components
+- [库官方文档](https://example.com/docs#section)
+  - 特定功能的实现指南
+  - 原因：实现 X 功能所必需
+- [框架指南](https://example.com/guide#integration)
+  - 集成模式章节
+  - 原因：说明组件如何连接
 ```
 
-### Phase 4: Deep Strategic Thinking
+### 阶段 4：深度战略思考
 
-**Think Harder About:**
+**重点深入思考：**
 
-- How does this feature fit into the existing architecture?
-- What are the critical dependencies and order of operations?
-- What could go wrong? (Edge cases, race conditions, errors)
-- How will this be tested comprehensively?
-- What performance implications exist?
-- Are there security considerations?
-- How maintainable is this approach?
+- 这个功能如何融入现有架构？
+- 关键依赖和执行顺序是什么？
+- 可能出现哪些问题？（边界情况、竞争条件、错误）
+- 如何对它进行全面测试？
+- 是否存在性能影响？
+- 是否有安全方面的考虑？
+- 这个方案是否易于维护？
 
-**Design Decisions:**
+**设计决策：**
 
-- Choose between alternative approaches with clear rationale
-- Design for extensibility and future modifications
-- Plan for backward compatibility if needed
-- Consider scalability implications
+- 在备选方案中做出选择，并给出清晰理由
+- 为可扩展性和未来修改而设计
+- 如有需要，规划向后兼容
+- 考虑可伸缩性影响
 
-### Phase 5: Plan Structure Generation
+### 阶段 5：生成计划结构
 
-**Create comprehensive plan with the following structure:**
+**按以下结构创建完整计划：**
 
-Whats below here is a template for you to fill for th4e implementation agent:
+以下内容是提供给实施代理填写的模板：
 
 ```markdown
-# Feature: <feature-name>
+# 功能：<feature-name>
 
-The following plan should be complete, but its important that you validate documentation and codebase patterns and task sanity before you start implementing.
+以下计划应当完整，但在开始实现之前，仍必须核验文档、代码库模式以及任务本身是否合理。
 
-Pay special attention to naming of existing utils types and models. Import from the right files etc.
+请特别注意已有工具、类型和模型的命名，并确保从正确的文件导入。
 
-## Feature Description
+## 功能描述
 
-<Detailed description of the feature, its purpose, and value to users>
+<对该功能、其目的以及对用户价值的详细描述>
 
-## User Story
+## 用户故事
 
-As a <type of user>
-I want to <action/goal>
-So that <benefit/value>
+作为 <用户类型>
+我想要 <动作/目标>
+以便 <收益/价值>
 
-## Problem Statement
+## 问题陈述
 
-<Clearly define the specific problem or opportunity this feature addresses>
+<清晰定义该功能所解决的具体问题或机会>
 
-## Solution Statement
+## 方案陈述
 
-<Describe the proposed solution approach and how it solves the problem>
+<描述提议的解决方案及其如何解决问题>
 
-## Feature Metadata
+## 功能元数据
 
-**Feature Type**: [New Capability/Enhancement/Refactor/Bug Fix]
-**Estimated Complexity**: [Low/Medium/High]
-**Primary Systems Affected**: [List of main components/services]
-**Dependencies**: [External libraries or services required]
-
----
-
-## CONTEXT REFERENCES
-
-### Relevant Codebase Files IMPORTANT: YOU MUST READ THESE FILES BEFORE IMPLEMENTING!
-
-<List files with line numbers and relevance>
-
-- `path/to/file.py` (lines 15-45) - Why: Contains pattern for X that we'll mirror
-- `path/to/model.py` (lines 100-120) - Why: Database model structure to follow
-- `path/to/test.py` - Why: Test pattern example
-
-### New Files to Create
-
-- `path/to/new_service.py` - Service implementation for X functionality
-- `path/to/new_model.py` - Data model for Y resource
-- `tests/path/to/test_new_service.py` - Unit tests for new service
-
-### Relevant Documentation YOU SHOULD READ THESE BEFORE IMPLEMENTING!
-
-- [Documentation Link 1](https://example.com/doc1#section)
-  - Specific section: Authentication setup
-  - Why: Required for implementing secure endpoints
-- [Documentation Link 2](https://example.com/doc2#integration)
-  - Specific section: Database integration
-  - Why: Shows proper async database patterns
-
-### Patterns to Follow
-
-<Specific patterns extracted from codebase - include actual code examples from the project>
-
-**Naming Conventions:** (for example)
-
-**Error Handling:** (for example)
-
-**Logging Pattern:** (for example)
-
-**Other Relevant Patterns:** (for example)
+**功能类型**：[新能力 / 增强 / 重构 / 缺陷修复]
+**预计复杂度**：[低 / 中 / 高]
+**主要受影响系统**：[主要组件 / 服务列表]
+**依赖项**：[所需的外部库或服务]
 
 ---
 
-## IMPLEMENTATION PLAN
+## 上下文参考
 
-### Phase 1: Foundation
+### 相关代码库文件 重要：在实现前必须阅读这些文件！
 
-<Describe foundational work needed before main implementation>
+<列出文件、行号以及相关性>
 
-**Tasks:**
+- `path/to/file.py`（第 15-45 行）- 原因：包含我们将要复用的 X 模式
+- `path/to/model.py`（第 100-120 行）- 原因：需要遵循的数据库模型结构
+- `path/to/test.py` - 原因：测试模式示例
 
-- Set up base structures (schemas, types, interfaces)
-- Configure necessary dependencies
-- Create foundational utilities or helpers
+### 需要创建的新文件
 
-### Phase 2: Core Implementation
+- `path/to/new_service.py` - X 功能的服务实现
+- `path/to/new_model.py` - Y 资源的数据模型
+- `tests/path/to/test_new_service.py` - 新服务的单元测试
 
-<Describe the main implementation work>
+### 相关文档 在实现前应先阅读这些文档！
 
-**Tasks:**
+- [文档链接 1](https://example.com/doc1#section)
+  - 具体章节：认证配置
+  - 原因：实现安全端点所必需
+- [文档链接 2](https://example.com/doc2#integration)
+  - 具体章节：数据库集成
+  - 原因：展示正确的异步数据库模式
 
-- Implement core business logic
-- Create service layer components
-- Add API endpoints or interfaces
-- Implement data models
+### 需要遵循的模式
 
-### Phase 3: Integration
+<从代码库中提取的具体模式，包含项目中的真实代码示例>
 
-<Describe how feature integrates with existing functionality>
+**命名约定：**（示例）
 
-**Tasks:**
+**错误处理：**（示例）
 
-- Connect to existing routers/handlers
-- Register new components
-- Update configuration files
-- Add middleware or interceptors if needed
+**日志模式：**（示例）
 
-### Phase 4: Testing & Validation
-
-<Describe testing approach>
-
-**Tasks:**
-
-- Implement unit tests for each component
-- Create integration tests for feature workflow
-- Add edge case tests
-- Validate against acceptance criteria
+**其他相关模式：**（示例）
 
 ---
 
-## STEP-BY-STEP TASKS
+## 实施计划
 
-IMPORTANT: Execute every task in order, top to bottom. Each task is atomic and independently testable.
+### 阶段 1：基础建设
 
-### Task Format Guidelines
+<描述主要实现前需要完成的基础工作>
 
-Use information-dense keywords for clarity:
+**任务：**
 
-- **CREATE**: New files or components
-- **UPDATE**: Modify existing files
-- **ADD**: Insert new functionality into existing code
-- **REMOVE**: Delete deprecated code
-- **REFACTOR**: Restructure without changing behavior
-- **MIRROR**: Copy pattern from elsewhere in codebase
+- 搭建基础结构（schema、类型、接口）
+- 配置必要依赖
+- 创建基础工具或辅助函数
+
+### 阶段 2：核心实现
+
+<描述主要实现工作>
+
+**任务：**
+
+- 实现核心业务逻辑
+- 创建服务层组件
+- 添加 API 端点或接口
+- 实现数据模型
+
+### 阶段 3：集成
+
+<描述该功能如何与现有功能集成>
+
+**任务：**
+
+- 接入现有路由 / 处理器
+- 注册新组件
+- 更新配置文件
+- 如有需要，添加中间件或拦截器
+
+### 阶段 4：测试与验证
+
+<描述测试策略>
+
+**任务：**
+
+- 为每个组件实现单元测试
+- 为功能流程创建集成测试
+- 添加边界情况测试
+- 按验收标准进行验证
+
+---
+
+## 分步任务
+
+重要：按顺序从上到下执行每个任务。每个任务都必须是原子化的，并且可以独立测试。
+
+### 任务格式指南
+
+使用高信息密度关键词以提高清晰度：
+
+- **CREATE**：新文件或新组件
+- **UPDATE**：修改已有文件
+- **ADD**：向现有代码中插入新功能
+- **REMOVE**：删除已废弃代码
+- **REFACTOR**：在不改变行为的前提下重构
+- **MIRROR**：复制代码库中其他地方的模式
 
 ### {ACTION} {target_file}
 
-- **IMPLEMENT**: {Specific implementation detail}
-- **PATTERN**: {Reference to existing pattern - file:line}
-- **IMPORTS**: {Required imports and dependencies}
-- **GOTCHA**: {Known issues or constraints to avoid}
-- **VALIDATE**: `{executable validation command}`
+- **IMPLEMENT**：{具体实现细节}
+- **PATTERN**：{现有模式引用 - file:line}
+- **IMPORTS**：{所需导入与依赖}
+- **GOTCHA**：{需要避免的已知问题或约束}
+- **VALIDATE**：`{可执行的验证命令}`
 
-<Continue with all tasks in dependency order...>
-
----
-
-## TESTING STRATEGY
-
-<Define testing approach based on project's test framework and patterns discovered in during research>
-
-### Unit Tests
-
-<Scope and requirements based on project standards>
-
-Design unit tests with fixtures and assertions following existing testing approaches
-
-### Integration Tests
-
-<Scope and requirements based on project standards>
-
-### Edge Cases
-
-<List specific edge cases that must be tested for this feature>
+<继续按依赖顺序列出所有任务...>
 
 ---
 
-## VALIDATION COMMANDS
+## 测试策略
 
-<Define validation commands based on project's tools discovered in Phase 2>
+<基于项目测试框架以及研究阶段发现的模式定义测试方案>
 
-Execute every command to ensure zero regressions and 100% feature correctness.
+### 单元测试
 
-### Level 1: Syntax & Style
+<基于项目标准定义范围与要求>
 
-<Project-specific linting and formatting commands>
+按照现有测试方式，使用 fixture 和断言设计单元测试。
 
-### Level 2: Unit Tests
+### 集成测试
 
-<Project-specific unit test commands>
+<基于项目标准定义范围与要求>
 
-### Level 3: Integration Tests
+### 边界情况
 
-<Project-specific integration test commands>
-
-### Level 4: Manual Validation
-
-<Feature-specific manual testing steps - API calls, UI testing, etc.>
-
-### Level 5: Additional Validation (Optional)
-
-<MCP servers or additional CLI tools if available>
+<列出该功能必须覆盖测试的具体边界情况>
 
 ---
 
-## ACCEPTANCE CRITERIA
+## 验证命令
 
-<List specific, measurable criteria that must be met for completion>
+<根据阶段 2 发现的项目工具定义验证命令>
 
-- [ ] Feature implements all specified functionality
-- [ ] All validation commands pass with zero errors
-- [ ] Unit test coverage meets requirements (80%+)
-- [ ] Integration tests verify end-to-end workflows
-- [ ] Code follows project conventions and patterns
-- [ ] No regressions in existing functionality
-- [ ] Documentation is updated (if applicable)
-- [ ] Performance meets requirements (if applicable)
-- [ ] Security considerations addressed (if applicable)
+执行每一条命令，确保零回归并尽可能保证功能正确。
+
+### 第 1 层：语法与风格
+
+<项目专用的 lint 与格式化命令>
+
+### 第 2 层：单元测试
+
+<项目专用的单元测试命令>
+
+### 第 3 层：集成测试
+
+<项目专用的集成测试命令>
+
+### 第 4 层：手动验证
+
+<功能专用的手动测试步骤，例如 API 调用、UI 测试等>
+
+### 第 5 层：附加验证（可选）
+
+<如果可用，可使用 MCP 服务或其他 CLI 工具>
 
 ---
 
-## COMPLETION CHECKLIST
+## 验收标准
 
-- [ ] All tasks completed in order
-- [ ] Each task validation passed immediately
-- [ ] All validation commands executed successfully
-- [ ] Full test suite passes (unit + integration)
-- [ ] No linting or type checking errors
-- [ ] Manual testing confirms feature works
-- [ ] Acceptance criteria all met
-- [ ] Code reviewed for quality and maintainability
+<列出必须满足的、具体且可衡量的完成标准>
+
+- [ ] 功能实现了所有指定能力
+- [ ] 所有验证命令均零错误通过
+- [ ] 单元测试覆盖率满足要求（80%+）
+- [ ] 集成测试验证了端到端工作流
+- [ ] 代码遵循项目约定与模式
+- [ ] 现有功能没有产生回归
+- [ ] 文档已更新（如适用）
+- [ ] 性能满足要求（如适用）
+- [ ] 安全相关问题已处理（如适用）
 
 ---
 
-## NOTES
+## 完成检查清单
 
-<Additional context, design decisions, trade-offs>
+- [ ] 所有任务均按顺序完成
+- [ ] 每个任务都已立即通过验证
+- [ ] 所有验证命令均执行成功
+- [ ] 完整测试套件通过（单元 + 集成）
+- [ ] 没有 lint 或类型检查错误
+- [ ] 手动测试确认功能可用
+- [ ] 所有验收标准均已满足
+- [ ] 代码已从质量与可维护性角度完成审查
+
+---
+
+## 备注
+
+<补充上下文、设计决策与权衡说明>
 ```
 
-## Output Format
+## 输出格式
 
-**Filename**: `.agents/plans/{kebab-case-descriptive-name}.md`
+**文件名**：`.agents/plans/{kebab-case-descriptive-name}.md`
 
-- Replace `{kebab-case-descriptive-name}` with short, descriptive feature name
-- Examples: `add-user-authentication.md`, `implement-search-api.md`, `refactor-database-layer.md`
+- 将 `{kebab-case-descriptive-name}` 替换为简短、清晰的功能名
+- 例如：`add-user-authentication.md`、`implement-search-api.md`、`refactor-database-layer.md`
 
-**Directory**: Create `.agents/plans/` if it doesn't exist
+**目录**：如果 `.agents/plans/` 不存在，则创建它
 
-## Quality Criteria
+## 质量标准
 
-### Context Completeness ✓
+### 上下文完整性
 
-- [ ] All necessary patterns identified and documented
-- [ ] External library usage documented with links
-- [ ] Integration points clearly mapped
-- [ ] Gotchas and anti-patterns captured
-- [ ] Every task has executable validation command
+- [ ] 所有必要模式都已识别并记录
+- [ ] 外部库用法已附带链接进行说明
+- [ ] 集成点已清晰梳理
+- [ ] 已记录陷阱与反模式
+- [ ] 每个任务都有可执行的验证命令
 
-### Implementation Ready ✓
+### 可直接实施
 
-- [ ] Another developer could execute without additional context
-- [ ] Tasks ordered by dependency (can execute top-to-bottom)
-- [ ] Each task is atomic and independently testable
-- [ ] Pattern references include specific file:line numbers
+- [ ] 其他开发者无需额外上下文即可执行
+- [ ] 任务已按依赖顺序排列（可自上而下执行）
+- [ ] 每个任务都是原子化并可独立测试的
+- [ ] 模式引用包含明确的 `file:line` 行号
 
-### Pattern Consistency ✓
+### 模式一致性
 
-- [ ] Tasks follow existing codebase conventions
-- [ ] New patterns justified with clear rationale
-- [ ] No reinvention of existing patterns or utils
-- [ ] Testing approach matches project standards
+- [ ] 任务遵循现有代码库约定
+- [ ] 新模式有清晰理由支撑
+- [ ] 不重复发明已有模式或工具
+- [ ] 测试方案符合项目标准
 
-### Information Density ✓
+### 信息密度
 
-- [ ] No generic references (all specific and actionable)
-- [ ] URLs include section anchors when applicable
-- [ ] Task descriptions use codebase keywords
-- [ ] Validation commands are non interactive executable
+- [ ] 没有泛泛而谈的引用（都应具体且可执行）
+- [ ] 在适用时，URL 包含章节锚点
+- [ ] 任务描述使用代码库中的关键词
+- [ ] 验证命令为非交互、可执行命令
 
-## Success Metrics
+## 成功指标
 
-**One-Pass Implementation**: Execution agent can complete feature without additional research or clarification
+**一次性实施成功**：执行代理无需额外研究或澄清即可完成功能实现
 
-**Validation Complete**: Every task has at least one working validation command
+**验证完整**：每个任务至少有一条可运行的验证命令
 
-**Context Rich**: The Plan passes "No Prior Knowledge Test" - someone unfamiliar with codebase can implement using only Plan content
+**上下文充分**：该计划通过“无先验知识测试”，即不熟悉代码库的人也能仅凭计划内容完成实现
 
-**Confidence Score**: #/10 that execution will succeed on first attempt
+**信心评分**：首次执行成功概率评分为 #/10
 
-## Report
+## 报告
 
-After creating the Plan, provide:
+创建计划后，请提供：
 
-- Summary of feature and approach
-- Full path to created Plan file
-- Complexity assessment
-- Key implementation risks or considerations
-- Estimated confidence score for one-pass success
+- 功能与方案摘要
+- 已创建计划文件的完整路径
+- 复杂度评估
+- 关键实现风险或注意事项
+- 一次性成功的预估信心评分
